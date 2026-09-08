@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { apiUsers } from '@/services/api';
+import { haySesionActiva } from '@/hooks/useAuth';
 
 export function AppHeader() {
   const { items } = useCart();
@@ -15,9 +16,15 @@ export function AppHeader() {
 
   useEffect(() => {
     const consultar = () => {
-      apiUsers.get('/notificaciones/no-leidas')
-        .then((res) => setNoLeidas(res.data.cantidad))
-        .catch(() => {});
+      haySesionActiva().then((logueado) => {
+        if (!logueado) {
+          setNoLeidas(0);
+          return;
+        }
+        apiUsers.get('/notificaciones/no-leidas')
+          .then((res) => setNoLeidas(res.data.cantidad))
+          .catch(() => {});
+      });
     };
     consultar();
     const intervalo = setInterval(consultar, 15000);
@@ -26,24 +33,38 @@ export function AppHeader() {
 
   useEffect(() => {
     const consultarDireccion = () => {
-      apiUsers.get('/direcciones')
-        .then((res) => {
-          const primera = res.data[0];
-          if (primera?.calle) {
-            const texto = primera.calle.length > 22
-              ? primera.calle.slice(0, 22) + '…'
-              : primera.calle;
-            setDireccionCorta(texto);
-          } else {
-            setDireccionCorta(null);
-          }
-        })
-        .catch(() => {});
+      haySesionActiva().then((logueado) => {
+        if (!logueado) {
+          setDireccionCorta(null);
+          return;
+        }
+        apiUsers.get('/direcciones')
+          .then((res) => {
+            const primera = res.data[0];
+            if (primera?.calle) {
+              const texto = primera.calle.length > 22
+                ? primera.calle.slice(0, 22) + '…'
+                : primera.calle;
+              setDireccionCorta(texto);
+            } else {
+              setDireccionCorta(null);
+            }
+          })
+          .catch(() => {});
+      });
     };
     consultarDireccion();
     const intervalo = setInterval(consultarDireccion, 5000);
     return () => clearInterval(intervalo);
   }, []);
+
+  const handlePresionarCarrito = () => {
+    router.push('/carrito' as any);
+  };
+
+  const handlePresionarNotificaciones = () => {
+    router.push('/notificaciones' as any);
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -61,7 +82,7 @@ export function AppHeader() {
         </View>
 
         <View style={styles.right}>
-          <TouchableOpacity style={styles.icono} onPress={() => router.push('/carrito')}>
+          <TouchableOpacity style={styles.icono} onPress={handlePresionarCarrito}>
             <Ionicons name="cart-outline" size={20} color="#1d1d1d" />
             {cantidadCarrito > 0 && (
               <View style={styles.badge}>
@@ -70,7 +91,7 @@ export function AppHeader() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.icono} onPress={() => router.push('/notificaciones' as any)}>
+          <TouchableOpacity style={styles.icono} onPress={handlePresionarNotificaciones}>
             <Ionicons name="notifications-outline" size={20} color="#1d1d1d" />
             {noLeidas > 0 && (
               <View style={styles.badge}>

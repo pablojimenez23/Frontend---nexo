@@ -15,6 +15,17 @@ const redirectUri = AuthSession.makeRedirectUri({
   scheme: 'nexo',
 });
 
+// Utilidad standalone: se puede llamar desde cualquier pantalla, sin necesitar el hook completo
+export async function haySesionActiva(): Promise<boolean> {
+  const token = await SecureStore.getItemAsync('access_token');
+  return !!token;
+}
+
+export async function cerrarSesionGlobal() {
+  await SecureStore.deleteItemAsync('access_token');
+  await SecureStore.deleteItemAsync('refresh_token');
+}
+
 export function useAuth() {
   const [cargando, setCargando] = useState(false);
 
@@ -32,11 +43,9 @@ export function useAuth() {
   const iniciarSesion = useCallback(async () => {
     if (!request) return;
     setCargando(true);
-    console.log('redirectUri usado:', redirectUri);
 
     try {
       const result = await promptAsync();
-      console.log('Resultado de promptAsync:', JSON.stringify(result));
 
       if (result.type === 'success' && result.params.code) {
         const tokenResponse = await AuthSession.exchangeCodeAsync(
@@ -55,8 +64,6 @@ export function useAuth() {
         }
 
         return tokenResponse.accessToken;
-      } else {
-        console.log('Login no exitoso, tipo:', result.type);
       }
     } catch (error) {
       console.log('ERROR en login:', error);

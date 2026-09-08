@@ -7,6 +7,7 @@ import { apiOrders, apiStores } from '@/services/api';
 type Pedido = {
   id: string;
   total: number;
+  comisionPlataforma: number;
 };
 
 type Calificacion = {
@@ -48,6 +49,8 @@ export default function TiendaActividadScreen() {
   );
 
   const totalVentas = completados.reduce((acc, p) => acc + p.total, 0);
+  const totalComision = completados.reduce((acc, p) => acc + p.comisionPlataforma, 0);
+  const gananciaNeta = totalVentas - totalComision;
   const promedio = calificaciones.length > 0
     ? calificaciones.reduce((acc, c) => acc + c.puntaje, 0) / calificaciones.length
     : 0;
@@ -98,10 +101,18 @@ export default function TiendaActividadScreen() {
         <View style={styles.filaStats}>
           <View style={styles.statCard}>
             <View style={styles.statIconoWrapper}>
-              <Ionicons name="cash-outline" size={18} color="#2a9d8f" />
+              <Ionicons name="cash-outline" size={18} color="#8a6109" />
             </View>
             <Text style={styles.statValor}>${totalVentas.toLocaleString('es-CL')}</Text>
             <Text style={styles.statLabel}>Ventas totales</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.statCardDestacada]}>
+            <View style={styles.statIconoWrapper}>
+              <Ionicons name="wallet-outline" size={18} color="#2a9d8f" />
+            </View>
+            <Text style={styles.statValor}>${gananciaNeta.toLocaleString('es-CL')}</Text>
+            <Text style={styles.statLabel}>Ganancia neta</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -119,6 +130,13 @@ export default function TiendaActividadScreen() {
             <Text style={styles.statValor}>{completados.length}</Text>
             <Text style={styles.statLabel}>Completados</Text>
           </View>
+        </View>
+
+        <View style={styles.avisoComision}>
+          <Ionicons name="information-circle-outline" size={14} color="#999" />
+          <Text style={styles.avisoComisionTexto}>
+            Comisión total retenida por NEXO: ${totalComision.toLocaleString('es-CL')}
+          </Text>
         </View>
 
         <View style={styles.tabs}>
@@ -157,6 +175,14 @@ export default function TiendaActividadScreen() {
                     </View>
                     <Text style={styles.ventaLabel}>Pedido completado</Text>
                     <Text style={styles.ventaValor}>${item.total.toLocaleString('es-CL')}</Text>
+                  </View>
+                  <View style={styles.filaComisionVenta}>
+                    <Text style={styles.filaComisionTexto}>
+                      Comisión NEXO: -${item.comisionPlataforma.toLocaleString('es-CL')}
+                    </Text>
+                    <Text style={styles.filaRecibesTexto}>
+                      Recibiste: ${(item.total - item.comisionPlataforma).toLocaleString('es-CL')}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -226,18 +252,25 @@ const styles = StyleSheet.create({
     borderRadius: 14, backgroundColor: 'rgba(230,57,70,0.04)', transform: [{ rotate: '20deg' }],
   },
 
-  filaStats: { flexDirection: 'row', gap: 10, padding: 20, paddingBottom: 14 },
+  filaStats: { flexDirection: 'row', gap: 8, padding: 20, paddingBottom: 8, flexWrap: 'wrap' },
   statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14, alignItems: 'center',
+    flexBasis: '47%', backgroundColor: '#fff', borderRadius: 16, padding: 14, alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8,
     elevation: 3,
   },
+  statCardDestacada: { backgroundColor: '#e3f6f4' },
   statIconoWrapper: {
     width: 32, height: 32, borderRadius: 10, backgroundColor: '#faf8f6',
     justifyContent: 'center', alignItems: 'center', marginBottom: 8,
   },
   statValor: { fontSize: 16, fontWeight: '800', color: '#1d1d1d' },
   statLabel: { fontSize: 10, color: '#999', fontWeight: '600', marginTop: 2, textAlign: 'center' },
+
+  avisoComision: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginHorizontal: 20, marginBottom: 14, paddingHorizontal: 4,
+  },
+  avisoComisionTexto: { fontSize: 11.5, color: '#999' },
 
   tabs: {
     flexDirection: 'row', marginHorizontal: 20, marginBottom: 14,
@@ -263,13 +296,20 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  filaVenta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  filaVenta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   filaIconoWrapper: {
     width: 32, height: 32, borderRadius: 10, backgroundColor: '#e3f6f4',
     justifyContent: 'center', alignItems: 'center',
   },
   ventaLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: '#1d1d1d' },
   ventaValor: { fontSize: 16, fontWeight: '800', color: '#c1121f' },
+
+  filaComisionVenta: {
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f2f2f2',
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  filaComisionTexto: { fontSize: 11.5, color: '#c0392b' },
+  filaRecibesTexto: { fontSize: 12, fontWeight: '700', color: '#2a9d8f' },
 
   filaEstrellas: { flexDirection: 'row', marginBottom: 8 },
   comentario: { fontSize: 13.5, color: '#333', lineHeight: 19, marginBottom: 8 },

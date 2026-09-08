@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { apiOrders, apiUsers } from '@/services/api';
 import { useCart } from '@/context/CartContext';
+import { haySesionActiva } from '@/hooks/useAuth';
 
 type Direccion = {
   id: string;
@@ -25,6 +26,8 @@ export default function CheckoutScreen() {
   const [cargandoDirecciones, setCargandoDirecciones] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [obteniendoUbicacion, setObteniendoUbicacion] = useState(false);
+  const [verificandoSesion, setVerificandoSesion] = useState(true);
+  const [necesitaLogin, setNecesitaLogin] = useState(false);
 
   const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
   const [nuevaCalle, setNuevaCalle] = useState('');
@@ -45,7 +48,14 @@ export default function CheckoutScreen() {
   };
 
   useEffect(() => {
-    cargarDirecciones();
+    haySesionActiva().then((logueado) => {
+      setVerificandoSesion(false);
+      if (!logueado) {
+        setNecesitaLogin(true);
+        return;
+      }
+      cargarDirecciones();
+    });
   }, []);
 
   const limpiarTexto = (valor: string, limite: number) =>
@@ -86,7 +96,6 @@ export default function CheckoutScreen() {
     }
   };
 
-  // Lógica compartida: pide permiso, geolocaliza, y devuelve los datos ya formateados
   const obtenerUbicacionActual = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -117,7 +126,6 @@ export default function CheckoutScreen() {
     }
   };
 
-  // Guarda directo (botón principal, fuera del formulario)
   const usarUbicacionActual = async () => {
     const datos = await obtenerUbicacionActual();
     if (!datos) return;
@@ -138,7 +146,6 @@ export default function CheckoutScreen() {
     }
   };
 
-  // Solo autocompleta los campos del formulario, sin guardar (botón dentro del formulario manual)
   const autocompletarConUbicacion = async () => {
     const datos = await obtenerUbicacionActual();
     if (!datos) return;
@@ -193,6 +200,38 @@ export default function CheckoutScreen() {
     />
   );
 
+  if (verificandoSesion) {
+    return (
+      <>
+        {header}
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#c1121f" />
+        </View>
+      </>
+    );
+  }
+
+  if (necesitaLogin) {
+    return (
+      <>
+        {header}
+        <View style={styles.center}>
+          <Ionicons name="lock-closed-outline" size={32} color="#c9a3a3" style={{ marginBottom: 10 }} />
+          <Text style={styles.mensajeVacio}>Necesitás una cuenta para pedir</Text>
+          <Text style={styles.mensajeVacioSub}>
+            Tu carrito te va a estar esperando cuando vuelvas
+          </Text>
+          <TouchableOpacity
+            style={styles.botonLoginRequerido}
+            onPress={() => router.push('/login' as any)}
+          >
+            <Text style={styles.botonLoginRequeridoTexto}>Iniciar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <>
@@ -206,6 +245,8 @@ export default function CheckoutScreen() {
   }
 
   const costoEnvio = 2000;
+  const gananciaConductor = 1200;
+  const margenPlataformaEnvio = costoEnvio - gananciaConductor;
   const total = subtotal + costoEnvio;
 
   return (
@@ -353,6 +394,9 @@ export default function CheckoutScreen() {
             <Text style={styles.filaLabel}>Envío</Text>
             <Text style={styles.filaValor}>${costoEnvio.toLocaleString('es-CL')}</Text>
           </View>
+          <Text style={styles.notaEnvio}>
+            Del envío, ${gananciaConductor.toLocaleString('es-CL')} son para el conductor y ${margenPlataformaEnvio.toLocaleString('es-CL')} para NEXO
+          </Text>
           <View style={[styles.fila, styles.filaTotal]}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValor}>${total.toLocaleString('es-CL')}</Text>
@@ -383,7 +427,13 @@ const styles = StyleSheet.create({
     flex: 1, justifyContent: 'center', alignItems: 'center',
     backgroundColor: '#faf8f6',
   },
-  mensajeVacio: { fontSize: 16, fontWeight: '700', color: '#1d1d1d' },
+  mensajeVacio: { fontSize: 16, fontWeight: '700', color: '#1d1d1d', textAlign: 'center' },
+  mensajeVacioSub: { fontSize: 13, color: '#999', textAlign: 'center', marginTop: 6, paddingHorizontal: 30 },
+  botonLoginRequerido: {
+    backgroundColor: '#c1121f', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32,
+    marginTop: 20,
+  },
+  botonLoginRequeridoTexto: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
   container: { flex: 1, backgroundColor: '#faf8f6', padding: 20 },
 
@@ -456,6 +506,7 @@ const styles = StyleSheet.create({
   fila: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   filaLabel: { fontSize: 13.5, color: '#666' },
   filaValor: { fontSize: 13.5, fontWeight: '700', color: '#1d1d1d' },
+  notaEnvio: { fontSize: 10.5, color: '#999', marginTop: -6, marginBottom: 10 },
   filaTotal: { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f0f0f0', marginBottom: 0 },
   totalLabel: { fontSize: 16, fontWeight: '800', color: '#1d1d1d' },
   totalValor: { fontSize: 18, fontWeight: '800', color: '#c1121f' },
