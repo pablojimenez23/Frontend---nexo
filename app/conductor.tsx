@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useState, useCallback } from 'react';
 import { router, useFocusEffect, Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiUsers, apiOrders } from '@/services/api';
 
@@ -101,55 +102,51 @@ export default function ConductorScreen() {
     }
   };
 
-  const header = (
-    <Stack.Screen
-      options={{
-        headerShown: true,
-        headerTitle: () => (
-          <View style={styles.headerTituloWrapper}>
-            <View style={styles.headerIconoWrapper}>
-              <Ionicons name="bicycle" size={15} color="#fff" />
-            </View>
-            <Text style={styles.headerTituloTexto}>Modo conductor</Text>
-          </View>
-        ),
-        headerStyle: { backgroundColor: '#c1121f' },
-        headerTintColor: '#fff',
-        headerShadowVisible: false,
-        headerLeft: () => (
-          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 8 }}>
+  const headerConfig = (
+    <Stack.Screen options={{ headerShown: false }} />
+  );
+
+  const CustomHeader = () => (
+    <SafeAreaView edges={['top']} style={styles.customHeaderSafeArea}>
+      <View style={styles.customHeaderContainer}>
+        <View style={styles.customHeaderIzquierda}>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 10 }}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-        ),
-        headerRight: () => (
-          <View style={styles.headerAccionesWrapper}>
-            <TouchableOpacity
-              onPress={() => router.push('/notificaciones' as any)}
-              style={styles.headerIconoCirculo}
-            >
-              <Ionicons name="notifications-outline" size={18} color="#1d1d1d" />
-              {noLeidas > 0 && (
-                <View style={styles.headerBadge}>
-                  <Text style={styles.headerBadgeTexto}>{noLeidas}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/conductor-actividad' as any)}
-              style={styles.headerIconoCirculo}
-            >
-              <Ionicons name="stats-chart-outline" size={18} color="#1d1d1d" />
-            </TouchableOpacity>
+          <View style={styles.headerIconoWrapper}>
+            <Ionicons name="bicycle" size={15} color="#fff" />
           </View>
-        ),
-      }}
-    />
+          <Text style={styles.headerTituloTexto}>Modo conductor</Text>
+        </View>
+
+        <View style={styles.headerAccionesWrapper}>
+          <TouchableOpacity
+            onPress={() => router.push('/notificaciones' as any)}
+            style={styles.headerIconoCirculo}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#1d1d1d" />
+            {noLeidas > 0 && (
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeTexto}>{noLeidas}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/conductor-actividad' as any)}
+            style={styles.headerIconoCirculo}
+          >
+            <Ionicons name="stats-chart-outline" size={18} color="#1d1d1d" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 
   if (cargando) {
     return (
       <>
-        {header}
+        {headerConfig}
+        <CustomHeader />
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#c1121f" />
         </View>
@@ -160,7 +157,8 @@ export default function ConductorScreen() {
   if (!conductor) {
     return (
       <>
-        {header}
+        {headerConfig}
+        <CustomHeader />
         <View style={styles.center}>
           <Text>No se encontró tu perfil de conductor</Text>
         </View>
@@ -171,7 +169,8 @@ export default function ConductorScreen() {
   if (pedidoActual) {
     return (
       <>
-        {header}
+        {headerConfig}
+        <CustomHeader />
         <View style={styles.pantalla}>
           <View style={styles.figuraCirculoGrande} />
           <View style={styles.figuraCirculoChico} />
@@ -222,7 +221,8 @@ export default function ConductorScreen() {
 
   return (
     <>
-      {header}
+      {headerConfig}
+      <CustomHeader />
       <View style={styles.pantalla}>
         <View style={styles.figuraCirculoGrande} />
         <View style={styles.figuraCirculoChico} />
@@ -325,26 +325,35 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#faf8f6' },
   pantalla: { flex: 1, backgroundColor: '#faf8f6', overflow: 'hidden' },
 
-  headerTituloWrapper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  customHeaderSafeArea: { backgroundColor: '#c1121f' },
+  customHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#c1121f',
+  },
+  customHeaderIzquierda: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+
   headerIconoWrapper: {
     width: 26, height: 26, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center', marginRight: 8,
   },
   headerTituloTexto: { color: '#fff', fontSize: 17, fontWeight: '800' },
 
-  headerAccionesWrapper: { flexDirection: 'row', gap: 8, marginRight: 10 },
+  headerAccionesWrapper: { flexDirection: 'row', gap: 10 },
   headerIconoCirculo: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff',
+    width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff',
     justifyContent: 'center', alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
     elevation: 3,
   },
   headerBadge: {
-    position: 'absolute', top: -2, right: -2,
-    backgroundColor: '#c1121f', borderRadius: 9, minWidth: 18, height: 18,
-    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2,
-    elevation: 2,
+    position: 'absolute', top: -4, right: -4,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#1d1d1d',
+    justifyContent: 'center', alignItems: 'center',
   },
   headerBadgeTexto: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
 

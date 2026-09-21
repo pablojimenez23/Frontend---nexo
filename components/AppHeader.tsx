@@ -136,9 +136,11 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute', top: -3, right: -3,
-    backgroundColor: '#1d1d1d', borderRadius: 9, minWidth: 18, height: 18,
-    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3,
+    width: 18, height: 18, borderRadius: 999,
+    backgroundColor: '#1d1d1d',
+    justifyContent: 'center', alignItems: 'center',
     borderWidth: 1.5, borderColor: '#c1121f',
+    overflow: 'hidden',
   },
   badgeTexto: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
 });
