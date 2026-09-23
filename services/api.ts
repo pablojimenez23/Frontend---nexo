@@ -1,11 +1,13 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
+const ALB_HOST = 'http://nexo-alb-326907716.us-east-1.elb.amazonaws.com';
+
 const BASE_IPS = {
-  msUsers: 'http://192.168.0.9:8081',
-  msStores: 'http://192.168.0.9:8082',
-  msProducts: 'http://192.168.0.9:8083',
-  msOrders: 'http://192.168.0.9:8084',
+  msUsers: ALB_HOST,
+  msStores: `${ALB_HOST}/stores`,
+  msProducts: `${ALB_HOST}/products`,
+  msOrders: `${ALB_HOST}/orders`,
 };
 
 function crearCliente(baseURL: string) {

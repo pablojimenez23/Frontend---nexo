@@ -12,7 +12,7 @@ const discovery = {
 };
 
 const redirectUri = AuthSession.makeRedirectUri({
-  scheme: 'nexo',
+  scheme: 'nexoapp',
 });
 
 // Utilidad standalone: se puede llamar desde cualquier pantalla, sin necesitar el hook completo
