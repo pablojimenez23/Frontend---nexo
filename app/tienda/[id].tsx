@@ -11,6 +11,7 @@ import { useCart } from '@/context/CartContext';
 import { puntosDe } from '@/services/puntos';
 import { ofertaActiva, tiempoRestante } from '@/services/ofertas';
 import { Producto, esSimple, etiquetasDe, precioDesde } from '@/services/catalogo';
+import { useFuncion } from '@/services/version';
 
 type Seccion = {
   title: string;
@@ -28,6 +29,8 @@ export default function DetalleTiendaScreen() {
   const [ahora, setAhora] = useState(Date.now());
   const [filtro, setFiltro] = useState(TODO);
   const { agregarItem, reemplazarCarrito, items, subtotal, unidades } = useCart();
+  const puntosActivos = useFuncion('puntos');
+  const ofertasActivas = useFuncion('ofertas');
 
   useEffect(() => {
     apiStores.get(`/tiendas/${id}`).then((res) => setNombreTienda(res.data.nombre));
@@ -43,7 +46,7 @@ export default function DetalleTiendaScreen() {
   }, []);
 
   const ofertaVigente = (p: Producto) =>
-    p.oferta && ofertaActiva(p.oferta.fin, ahora) ? p.oferta : null;
+    ofertasActivas && p.oferta && ofertaActiva(p.oferta.fin, ahora) ? p.oferta : null;
 
   // Cada producto aparece en una sola sección: Ofertas, Destacados o su tipo
   const armarSecciones = (): Seccion[] => {
@@ -256,7 +259,9 @@ export default function DetalleTiendaScreen() {
                           {tieneTamanos ? 'Desde ' : ''}${precioNormal.toLocaleString('es-CL')}
                         </Text>
                       )}
-                      <Text style={styles.puntosPrecio}>o ◆ {puntosDe(precioFinal)} pts</Text>
+                      {puntosActivos && (
+                        <Text style={styles.puntosPrecio}>o ◆ {puntosDe(precioFinal)} pts</Text>
+                      )}
                     </View>
                   </View>
 

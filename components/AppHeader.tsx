@@ -7,11 +7,13 @@ import { useCart } from '@/context/CartContext';
 import { apiUsers } from '@/services/api';
 import { haySesionActiva } from '@/hooks/useAuth';
 import { alCerrarSesion } from '@/services/sesion';
+import { useFuncion } from '@/services/version';
 
 export function AppHeader() {
   const { items } = useCart();
   const [noLeidas, setNoLeidas] = useState(0);
   const [direccionCorta, setDireccionCorta] = useState<string | null>(null);
+  const verNotificaciones = useFuncion('notificaciones');
 
   const cantidadCarrito = items.reduce((acc, i) => acc + i.cantidad, 0);
 
@@ -27,6 +29,10 @@ export function AppHeader() {
     let activo = true;
 
     const consultar = async () => {
+      if (!verNotificaciones) {
+        setNoLeidas(0);
+        return;
+      }
       const logueado = await haySesionActiva();
       if (!activo) return;
 
@@ -55,7 +61,7 @@ export function AppHeader() {
       activo = false;
       clearInterval(intervalo);
     };
-  }, []);
+  }, [verNotificaciones]);
 
   useEffect(() => {
     let activo = true;
@@ -127,14 +133,16 @@ export function AppHeader() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.icono} onPress={handlePresionarNotificaciones}>
-            <Ionicons name="notifications-outline" size={20} color="#1d1d1d" />
-            {noLeidas > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeTexto}>{noLeidas}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {verNotificaciones && (
+            <TouchableOpacity style={styles.icono} onPress={handlePresionarNotificaciones}>
+              <Ionicons name="notifications-outline" size={20} color="#1d1d1d" />
+              {noLeidas > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeTexto}>{noLeidas}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>

@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiOrders, apiStores, apiUsers } from '@/services/api';
 import { puntosGanadosDe } from '@/services/puntos';
+import { useFuncion } from '@/services/version';
 
 type Pedido = {
   id: string;
@@ -36,6 +37,7 @@ const ESTADOS: Record<string, {
 
 export default function PedidoConfirmadoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const puntosActivos = useFuncion('puntos');
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [cargando, setCargando] = useState(true);
   const [confirmando, setConfirmando] = useState(false);
@@ -68,7 +70,7 @@ export default function PedidoConfirmadoScreen() {
   };
 
   const cancelarPedido = () => {
-    const usoPuntos = Number(pedido?.descuentoPuntos ?? 0) > 0;
+    const usoPuntos = puntosActivos && Number(pedido?.descuentoPuntos ?? 0) > 0;
     const aviso =
       pedido?.estado === 'READY'
         ? 'El pedido ya está listo: se te cobrará un cargo del 20% del subtotal.'
@@ -201,7 +203,7 @@ export default function PedidoConfirmadoScreen() {
             </View>
           </View>
 
-          {descuentoPuntos > 0 && (
+          {puntosActivos && descuentoPuntos > 0 && (
             <View style={styles.filaResumen}>
               <View style={[styles.filaIconoWrapper, { backgroundColor: '#f3ecff' }]}>
                 <Ionicons name="star" size={16} color="#6d28d9" />
@@ -232,7 +234,7 @@ export default function PedidoConfirmadoScreen() {
             <Text style={styles.totalValor}>${pedido.total.toLocaleString('es-CL')}</Text>
           </View>
 
-          {pedido.estado === 'CANCELLED' && Number(pedido.puntosCanjeados ?? 0) > 0 && (
+          {puntosActivos && pedido.estado === 'CANCELLED' && Number(pedido.puntosCanjeados ?? 0) > 0 && (
             <View style={styles.filaPuntosGanados}>
               <Ionicons name="star" size={14} color="#6d28d9" />
               <Text style={styles.puntosGanadosTexto}>
@@ -241,7 +243,7 @@ export default function PedidoConfirmadoScreen() {
             </View>
           )}
 
-          {pedido.estado === 'COMPLETED' && puntosGanados > 0 && (
+          {puntosActivos && pedido.estado === 'COMPLETED' && puntosGanados > 0 && (
             <View style={styles.filaPuntosGanados}>
               <Ionicons name="star" size={14} color="#6d28d9" />
               <Text style={styles.puntosGanadosTexto}>Ganaste {puntosGanados} puntos con este pedido</Text>

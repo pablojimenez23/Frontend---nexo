@@ -12,6 +12,7 @@ import {
   TOPE_CANJE_PORCENTAJE,
   topeCanjePesos,
 } from '@/services/puntos';
+import { useFuncion } from '@/services/version';
 
 type Direccion = {
   id: string;
@@ -29,6 +30,7 @@ const PASO_PUNTOS = 10;
 
 export default function CheckoutScreen() {
   const { tiendaId, items, subtotal, unidades, llevaAlcohol, vaciarCarrito } = useCart();
+  const puntosActivos = useFuncion('puntos');
 
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
   const [direccionSeleccionada, setDireccionSeleccionada] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export default function CheckoutScreen() {
   const topeCanje = topeCanjePesos(subtotal);
   const maximoPuntos = Math.min(saldoPuntos, Math.floor(topeCanje / PESOS_POR_PUNTO_CANJE));
   const puedeUsarPuntos = maximoPuntos >= MINIMO_CANJE;
-  const puntosUsados = puedeUsarPuntos ? Math.min(puntosElegidos, maximoPuntos) : 0;
+  const puntosUsados = puntosActivos && puedeUsarPuntos ? Math.min(puntosElegidos, maximoPuntos) : 0;
   const descuentoPuntos = puntosUsados * PESOS_POR_PUNTO_CANJE;
 
   const sumarPuntos = () =>
@@ -462,7 +464,7 @@ export default function CheckoutScreen() {
           </View>
         )}
 
-        {saldoPuntos > 0 && (
+        {puntosActivos && saldoPuntos > 0 && (
           <View style={styles.seccion}>
             <View style={styles.seccionHeader}>
               <Ionicons name="star" size={18} color="#6d28d9" />

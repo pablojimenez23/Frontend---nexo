@@ -8,6 +8,7 @@ import { apiUsers, apiStores } from '@/services/api';
 import { haySesionActiva } from '@/hooks/useAuth';
 import { avisarSesionCerrada } from '@/services/sesion';
 import { formatearFecha } from '@/services/puntos';
+import { useFuncion } from '@/services/version';
 
 type Usuario = {
   nombre: string;
@@ -36,6 +37,7 @@ type Vencimiento = {
 };
 
 export default function PerfilScreen() {
+  const puntosActivos = useFuncion('puntos');
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
   const [tienda, setTienda] = useState<Tienda | null>(null);
@@ -254,7 +256,7 @@ export default function PerfilScreen() {
                 {direcciones.length} {direcciones.length === 1 ? 'dirección' : 'direcciones'}
               </Text>
             </View>
-            {puntos !== null && (
+            {puntosActivos && puntos !== null && (
               <View style={styles.puntosChip}>
                 <Ionicons name="star" size={12} color="#6d28d9" />
                 <Text style={styles.puntosChipTexto}>
@@ -264,7 +266,7 @@ export default function PerfilScreen() {
             )}
           </View>
 
-          {vencimiento && (
+          {puntosActivos && vencimiento && (
             <View style={[styles.vencimientoChip, vencimiento.pronto && styles.vencimientoChipPronto]}>
               <Ionicons
                 name="time-outline"

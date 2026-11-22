@@ -11,6 +11,7 @@ import { useCart, totalLinea, NuevoItemCarrito } from '@/context/CartContext';
 import { puntosDe } from '@/services/puntos';
 import { ofertaActiva, tiempoRestante } from '@/services/ofertas';
 import { Producto, Grupo, etiquetasDe, lista } from '@/services/catalogo';
+import { useFuncion } from '@/services/version';
 
 const MAX_NOTA = 140;
 const MAX_UNIDADES = 20;
@@ -20,6 +21,8 @@ const peso = (n: number) => `$${n.toLocaleString('es-CL')}`;
 export default function ProductoDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { agregarItem, reemplazarCarrito } = useCart();
+  const puntosActivos = useFuncion('puntos');
+  const ofertasActivas = useFuncion('ofertas');
 
   const [producto, setProducto] = useState<Producto | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -87,7 +90,7 @@ export default function ProductoDetalleScreen() {
   const variantes = producto.variantes ?? [];
   const grupos = producto.grupos ?? [];
   const variante = variantes.find((v) => v.id === varianteId) ?? null;
-  const oferta = producto.oferta && ofertaActiva(producto.oferta.fin, ahora) ? producto.oferta : null;
+  const oferta = ofertasActivas && producto.oferta && ofertaActiva(producto.oferta.fin, ahora) ? producto.oferta : null;
 
   const precioBase = variante ? variante.precio : producto.precio;
   const precioOfertaBase = oferta
@@ -246,9 +249,11 @@ export default function ProductoDetalleScreen() {
                   <Text style={styles.precio}>{peso(precioBase)}</Text>
                 )}
               </View>
-              <Text style={styles.puntosPrecio}>
-                o ◆ {puntosDe(hayOfertaVisible ? (precioOfertaBase as number) : precioBase)} pts
-              </Text>
+              {puntosActivos && (
+                <Text style={styles.puntosPrecio}>
+                  o ◆ {puntosDe(hayOfertaVisible ? (precioOfertaBase as number) : precioBase)} pts
+                </Text>
+              )}
 
               {hayOfertaVisible && oferta && (
                 <Text style={styles.ofertaInfo}>

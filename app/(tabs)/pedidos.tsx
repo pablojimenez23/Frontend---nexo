@@ -15,6 +15,7 @@ import {
   normalizar,
   ordenarPedidos,
 } from '@/services/pedidos';
+import { useFuncion } from '@/services/version';
 
 type Pedido = {
   id: string;
@@ -47,6 +48,7 @@ export default function PedidosScreen() {
   const [grupo, setGrupo] = useState('todos');
   const [fecha, setFecha] = useState<FiltroFecha>('todos');
   const [busqueda, setBusqueda] = useState('');
+  const puntosActivos = useFuncion('puntos');
 
   const cargarPedidos = useCallback((esSilencioso = false) => {
     if (!esSilencioso) setCargando(true);
@@ -256,7 +258,7 @@ export default function PedidosScreen() {
                   <Text style={styles.total}>${item.total.toLocaleString('es-CL')}</Text>
                   {fechaTexto !== '' && <Text style={styles.fecha}>{fechaTexto}</Text>}
                 </View>
-                {!!item.puntosCanjeados && item.puntosCanjeados > 0 && (
+                {puntosActivos && !!item.puntosCanjeados && item.puntosCanjeados > 0 && (
                   <Text style={styles.puntosPagados}>◆ Pagaste {item.puntosCanjeados} puntos</Text>
                 )}
               </View>
