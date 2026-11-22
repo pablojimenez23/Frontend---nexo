@@ -85,4 +85,30 @@ La URL de retorno debe coincidir exactamente con la registrada en el app client 
 
 El ALB envía cada prefijo a su microservicio: `/stores*`, `/products*`, `/orders*` y `/messaging*`, y el resto a ms-users.
 
-##
+## 7. Pantallas principales
+
+| Ruta | Qué muestra |
+|---|---|
+| `login` | Inicio de sesión con Cognito y con Google |
+| `(tabs)/inicio` y `(tabs)/tiendas` | Categorías y listado de tiendas |
+| `tienda/[id]` y `producto/[id]` | Catálogo de la tienda y detalle del producto con variantes |
+| `carrito` y `checkout` | Carrito, dirección de entrega, pago con puntos y confirmación |
+| `(tabs)/pedidos` y `pedido/[id]` | Pedidos del usuario con su estado, cancelación y confirmación de recepción |
+| `(tabs)/perfil` | Datos del usuario, direcciones y puntos |
+| `notificaciones` | Avisos del sistema, con contador de no leídos |
+| `mi-tienda` y `tienda-actividad` | Gestión de la tienda: productos, ofertas y pedidos |
+| `conductor` y `conductor-actividad` | Estado del conductor y pedidos para repartir |
+| `registrar-tienda` y `registrar-conductor` | Solicitudes para vender o repartir |
+| `terminos` | Términos y condiciones |
+
+## 8. Decisiones de diseño
+
+- **Tokens fuera del almacenamiento común.** El token de acceso y el de refresco se guardan en `expo-secure-store`, que usa el almacén seguro del sistema operativo.
+- **Un solo punto de acceso al backend.** `services/api.ts` adjunta el token y centraliza los errores; las pantallas no hacen peticiones por su cuenta.
+- **El estado del pedido se muestra con color y texto.** Cada estado (creado, pagado, confirmado, listo, entregado, completado, cancelado) tiene su insignia.
+- **Estados de carga, vacío y error** en cada pantalla, con botón de reintento.
+- **El contador de notificaciones** se actualiza con `useNoLeidas`.
+
+## 9. Backend
+
+NEXO se compone de cinco microservicios Spring Boot desplegados en AWS ECS Fargate. Repositorio del backend: https://github.com/pablojimenez23/Backend---Nexo
