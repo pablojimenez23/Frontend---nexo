@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { router, useFocusEffect, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiUsers } from '@/services/api';
+import { haySesionActiva } from '@/hooks/useAuth';
 
 type Notificacion = {
   id: string;
@@ -16,13 +17,25 @@ export default function NotificacionesScreen() {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [cargando, setCargando] = useState(true);
   const [borrandoTodas, setBorrandoTodas] = useState(false);
+  const [verificandoSesion, setVerificandoSesion] = useState(true);
+  const [necesitaLogin, setNecesitaLogin] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      setCargando(true);
-      apiUsers.get('/notificaciones')
-        .then((res) => setNotificaciones(res.data))
-        .finally(() => setCargando(false));
+      haySesionActiva().then((logueado) => {
+        setVerificandoSesion(false);
+
+        if (!logueado) {
+          setNecesitaLogin(true);
+          return;
+        }
+
+        setNecesitaLogin(false);
+        setCargando(true);
+        apiUsers.get('/notificaciones')
+          .then((res) => setNotificaciones(res.data))
+          .finally(() => setCargando(false));
+      });
     }, [])
   );
 
@@ -61,29 +74,63 @@ export default function NotificacionesScreen() {
     );
   };
 
+  const header = (
+    <Stack.Screen
+      options={{
+        headerShown: true,
+        headerTitle: 'Notificaciones',
+        headerLeft: () => (
+          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
+            <Ionicons name="arrow-back" size={24} color="#1d1d1d" />
+          </TouchableOpacity>
+        ),
+        headerRight: () =>
+          notificaciones.length > 0 ? (
+            <TouchableOpacity onPress={eliminarTodas} disabled={borrandoTodas} style={{ marginRight: 4 }}>
+              {borrandoTodas ? (
+                <ActivityIndicator size="small" color="#c1121f" />
+              ) : (
+                <Text style={styles.botonBorrarTodasTexto}>Borrar todas</Text>
+              )}
+            </TouchableOpacity>
+          ) : null,
+      }}
+    />
+  );
+
+  if (verificandoSesion) {
+    return (
+      <>
+        {header}
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#c1121f" />
+        </View>
+      </>
+    );
+  }
+
+  if (necesitaLogin) {
+    return (
+      <>
+        {header}
+        <View style={styles.center}>
+          <Ionicons name="lock-closed-outline" size={32} color="#c9a3a3" style={{ marginBottom: 10 }} />
+          <Text style={styles.mensajeVacio}>Necesitás una cuenta para ver tus notificaciones</Text>
+          <Text style={styles.mensajeVacioSub}>Iniciá sesión para ver tus avisos</Text>
+          <TouchableOpacity
+            style={styles.botonLoginRequerido}
+            onPress={() => router.push('/login' as any)}
+          >
+            <Text style={styles.botonLoginRequeridoTexto}>Iniciar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Notificaciones',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-              <Ionicons name="arrow-back" size={24} color="#1d1d1d" />
-            </TouchableOpacity>
-          ),
-          headerRight: () =>
-            notificaciones.length > 0 ? (
-              <TouchableOpacity onPress={eliminarTodas} disabled={borrandoTodas} style={{ marginRight: 4 }}>
-                {borrandoTodas ? (
-                  <ActivityIndicator size="small" color="#c1121f" />
-                ) : (
-                  <Text style={styles.botonBorrarTodasTexto}>Borrar todas</Text>
-                )}
-              </TouchableOpacity>
-            ) : null,
-        }}
-      />
+      {header}
 
       {cargando ? (
         <View style={styles.center}>
@@ -134,8 +181,13 @@ export default function NotificacionesScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  mensajeVacio: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  mensajeVacioSub: { fontSize: 13, color: '#999' },
+  mensajeVacio: { fontSize: 16, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
+  mensajeVacioSub: { fontSize: 13, color: '#999', textAlign: 'center' },
+  botonLoginRequerido: {
+    backgroundColor: '#c1121f', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32,
+    marginTop: 20,
+  },
+  botonLoginRequeridoTexto: { color: '#fff', fontWeight: '800', fontSize: 15 },
   list: { padding: 16 },
   botonBorrarTodasTexto: { color: '#c1121f', fontWeight: '700', fontSize: 13 },
   card: {

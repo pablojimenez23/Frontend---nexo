@@ -3,6 +3,7 @@ import { useState, useCallback, useRef } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiOrders } from '@/services/api';
+import { haySesionActiva } from '@/hooks/useAuth';
 
 type Pedido = {
   id: string;
@@ -24,6 +25,8 @@ const ESTADOS: Record<string, { label: string; color: string; fondo: string; ico
 export default function PedidosScreen() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [verificandoSesion, setVerificandoSesion] = useState(true);
+  const [necesitaLogin, setNecesitaLogin] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cargarPedidos = useCallback((esSilencioso = false) => {
@@ -35,13 +38,55 @@ export default function PedidosScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      cargarPedidos();
-      intervalRef.current = setInterval(() => cargarPedidos(true), 15000);
+      let activo = true;
+
+      haySesionActiva().then((logueado) => {
+        if (!activo) return;
+        setVerificandoSesion(false);
+
+        if (!logueado) {
+          setNecesitaLogin(true);
+          return;
+        }
+
+        setNecesitaLogin(false);
+        cargarPedidos();
+        intervalRef.current = setInterval(() => cargarPedidos(true), 15000);
+      });
+
       return () => {
+        activo = false;
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
     }, [cargarPedidos])
   );
+
+  if (verificandoSesion) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#c1121f" />
+      </View>
+    );
+  }
+
+  if (necesitaLogin) {
+    return (
+      <View style={styles.center}>
+        <View style={styles.figuraCirculoGrande} />
+        <View style={styles.figuraCirculoChico} />
+        <View style={styles.figuraCuadrado} />
+        <Ionicons name="receipt-outline" size={40} color="#c9a3a3" style={{ marginBottom: 10 }} />
+        <Text style={styles.mensajeVacio}>Necesitás una cuenta para ver tus pedidos</Text>
+        <Text style={styles.mensajeVacioSub}>Iniciá sesión para ver tu historial</Text>
+        <TouchableOpacity
+          style={styles.botonLoginRequerido}
+          onPress={() => router.push('/login' as any)}
+        >
+          <Text style={styles.botonLoginRequeridoTexto}>Iniciar sesión</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (cargando) {
     return (
@@ -118,6 +163,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#faf8f6', overflow: 'hidden',
   },
   mensajeVacio: { fontSize: 16, fontWeight: '700', marginTop: 16, textAlign: 'center' },
+  mensajeVacioSub: { fontSize: 13, color: '#999', textAlign: 'center', marginTop: 6 },
+  botonLoginRequerido: {
+    backgroundColor: '#c1121f', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32,
+    marginTop: 20,
+  },
+  botonLoginRequeridoTexto: { color: '#fff', fontWeight: '800', fontSize: 15 },
   imagenVacio: { width: 140, height: 140 },
 
   figuraCirculoGrande: {

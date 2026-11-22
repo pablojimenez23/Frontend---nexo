@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useState, useCallback } from 'react';
 import { router, useFocusEffect, Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { apiStores, apiOrders, apiProducts } from '@/services/api';
+import { apiStores, apiOrders, apiProducts, apiUsers } from '@/services/api';
 
 type Tienda = {
   id: string;
@@ -14,6 +15,7 @@ type Pedido = {
   id: string;
   estado: string;
   total: number;
+  comisionPlataforma: number;
   direccionEnvio: string;
 };
 
@@ -36,6 +38,7 @@ export default function MiTiendaScreen() {
   const [tab, setTab] = useState<'pedidos' | 'productos'>('pedidos');
   const [cargando, setCargando] = useState(true);
   const [actualizandoId, setActualizandoId] = useState<string | null>(null);
+  const [noLeidas, setNoLeidas] = useState(0);
 
   const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
   const [nombreProducto, setNombreProducto] = useState('');
@@ -67,13 +70,20 @@ export default function MiTiendaScreen() {
     }, [])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      apiUsers.get('/notificaciones/no-leidas')
+        .then((res) => setNoLeidas(res.data.cantidad))
+        .catch(() => {});
+    }, [])
+  );
+
   const limpiarTexto = (valor: string, limite: number) =>
     valor.replace(REGEX_TEXTO_LIBRE, '').slice(0, limite);
 
   const limpiarNumero = (valor: string, limite: number) =>
     valor.replace(/[^0-9]/g, '').slice(0, limite);
 
-  // Dos pasos reales para la tienda: tomar la orden, y después marcarla lista
   const siguienteEstado = (estado: string): { accion: string; endpoint: string; icono: keyof typeof Ionicons.glyphMap } | null => {
     switch (estado) {
       case 'PAID': return { accion: 'Tomar orden', endpoint: 'tomar-orden', icono: 'checkmark-circle-outline' };
@@ -148,39 +158,51 @@ export default function MiTiendaScreen() {
     }
   };
 
-  const header = (
-    <Stack.Screen
-      options={{
-        headerShown: true,
-        headerTitle: () => (
-          <View style={styles.headerTituloWrapper}>
-            <View style={styles.headerIconoWrapper}>
-              <Text style={{ fontSize: 15 }}>🏪</Text>
-            </View>
-            <Text style={styles.headerTituloTexto}>Mi tienda</Text>
-          </View>
-        ),
-        headerStyle: { backgroundColor: '#c1121f' },
-        headerTintColor: '#fff',
-        headerShadowVisible: false,
-        headerLeft: () => (
-          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
+  const headerConfig = (
+    <Stack.Screen options={{ headerShown: false }} />
+  );
+
+  const CustomHeader = () => (
+    <SafeAreaView edges={['top']} style={styles.customHeaderSafeArea}>
+      <View style={styles.customHeaderContainer}>
+        <View style={styles.customHeaderIzquierda}>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 10 }}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-        ),
-        headerRight: () => (
-          <TouchableOpacity onPress={() => router.push('/tienda-actividad' as any)} style={{ marginRight: 4 }}>
-            <Ionicons name="stats-chart-outline" size={22} color="#fff" />
+          <View style={styles.headerIconoWrapper}>
+            <Text style={{ fontSize: 15 }}>🏪</Text>
+          </View>
+          <Text style={styles.headerTituloTexto}>Mi tienda</Text>
+        </View>
+
+        <View style={styles.headerAccionesWrapper}>
+          <TouchableOpacity
+            onPress={() => router.push('/notificaciones' as any)}
+            style={styles.headerIconoCirculo}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#1d1d1d" />
+            {noLeidas > 0 && (
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeTexto}>{noLeidas}</Text>
+              </View>
+            )}
           </TouchableOpacity>
-        ),
-      }}
-    />
+          <TouchableOpacity
+            onPress={() => router.push('/tienda-actividad' as any)}
+            style={styles.headerIconoCirculo}
+          >
+            <Ionicons name="stats-chart-outline" size={18} color="#1d1d1d" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 
   if (cargando) {
     return (
       <>
-        {header}
+        {headerConfig}
+        <CustomHeader />
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#c1121f" />
         </View>
@@ -191,7 +213,8 @@ export default function MiTiendaScreen() {
   if (!tienda) {
     return (
       <>
-        {header}
+        {headerConfig}
+        <CustomHeader />
         <View style={styles.center}>
           <Text style={styles.mensajeVacio}>🏚️ Todavía no tenés local acá</Text>
           <Text style={styles.mensajeVacioSub}>Registrá tu tienda y empezá a vender en NEXO.</Text>
@@ -205,7 +228,8 @@ export default function MiTiendaScreen() {
 
   return (
     <>
-      {header}
+      {headerConfig}
+      <CustomHeader />
       <View style={styles.pantalla}>
         <View style={styles.figuraCirculoGrande} />
         <View style={styles.figuraCirculoChico} />
@@ -269,7 +293,26 @@ export default function MiTiendaScreen() {
                       <Text style={styles.badgeEstadoTexto}>{item.estado}</Text>
                     </View>
                     <Text style={styles.pedidoDireccion}>{item.direccionEnvio}</Text>
-                    <Text style={styles.pedidoTotal}>${item.total.toLocaleString('es-CL')}</Text>
+
+                    <View style={styles.desgloseComision}>
+                      <View style={styles.filaDesglose}>
+                        <Text style={styles.desgloseLabel}>Total del pedido</Text>
+                        <Text style={styles.desgloseValor}>${item.total.toLocaleString('es-CL')}</Text>
+                      </View>
+                      <View style={styles.filaDesglose}>
+                        <Text style={styles.desgloseLabelComision}>Comisión NEXO</Text>
+                        <Text style={styles.desgloseValorComision}>
+                          -${item.comisionPlataforma.toLocaleString('es-CL')}
+                        </Text>
+                      </View>
+                      <View style={styles.divisorDesglose} />
+                      <View style={styles.filaDesglose}>
+                        <Text style={styles.desgloseLabelRecibes}>Recibes</Text>
+                        <Text style={styles.pedidoTotal}>
+                          ${(item.total - item.comisionPlataforma).toLocaleString('es-CL')}
+                        </Text>
+                      </View>
+                    </View>
 
                     {siguiente ? (
                       <TouchableOpacity
@@ -406,12 +449,37 @@ const styles = StyleSheet.create({
     borderRadius: 50, backgroundColor: 'rgba(230,57,70,0.06)',
   },
 
-  headerTituloWrapper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  customHeaderSafeArea: { backgroundColor: '#c1121f' },
+  customHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#c1121f',
+  },
+  customHeaderIzquierda: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+
   headerIconoWrapper: {
     width: 26, height: 26, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center', marginRight: 8,
   },
   headerTituloTexto: { color: '#fff', fontSize: 17, fontWeight: '800' },
+
+  headerAccionesWrapper: { flexDirection: 'row', gap: 10 },
+  headerIconoCirculo: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff',
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
+    elevation: 3,
+  },
+  headerBadge: {
+    position: 'absolute', top: -4, right: -4,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#1d1d1d',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  headerBadgeTexto: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
 
   headerTienda: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
   headerFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -458,11 +526,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4, paddingHorizontal: 12, marginBottom: 8,
   },
   badgeEstadoTexto: { fontSize: 11, fontWeight: '800', color: '#c1121f' },
-  pedidoDireccion: { fontSize: 14, color: '#333', marginBottom: 8 },
+  pedidoDireccion: { fontSize: 14, color: '#333', marginBottom: 12 },
   pedidoTotal: { fontSize: 18, fontWeight: '800', color: '#1d1d1d' },
+
+  desgloseComision: { marginTop: 4, marginBottom: 12 },
+  filaDesglose: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  desgloseLabel: { fontSize: 13, color: '#666' },
+  desgloseValor: { fontSize: 13, fontWeight: '600', color: '#333' },
+  desgloseLabelComision: { fontSize: 12, color: '#c0392b' },
+  desgloseValorComision: { fontSize: 12, fontWeight: '600', color: '#c0392b' },
+  divisorDesglose: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 4 },
+  desgloseLabelRecibes: { fontSize: 14, fontWeight: '700', color: '#1d1d1d' },
+
   boton: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-    backgroundColor: '#c1121f', borderRadius: 10, paddingVertical: 13, marginTop: 12,
+    backgroundColor: '#c1121f', borderRadius: 10, paddingVertical: 13,
     shadowColor: '#c1121f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8,
     elevation: 4,
   },
@@ -470,7 +548,7 @@ const styles = StyleSheet.create({
 
   avisoEsperando: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginTop: 12, paddingVertical: 8,
+    paddingVertical: 8,
   },
   avisoEsperandoTexto: { fontSize: 12.5, color: '#999', fontStyle: 'italic' },
 
