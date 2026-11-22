@@ -6,6 +6,12 @@ import * as Location from 'expo-location';
 import { apiOrders, apiUsers } from '@/services/api';
 import { useCart } from '@/context/CartContext';
 import { haySesionActiva } from '@/hooks/useAuth';
+import {
+  MINIMO_CANJE,
+  PESOS_POR_PUNTO_CANJE,
+  TOPE_CANJE_PORCENTAJE,
+  topeCanjePesos,
+} from '@/services/puntos';
 
 type Direccion = {
   id: string;
@@ -18,8 +24,11 @@ type Direccion = {
 const REGEX_TEXTO_LIBRE = /[^a-zA-Z0-9À-ÿñÑ\s.,°#-]/g;
 const LIMITES = { calle: 80, ciudad: 40, region: 40 };
 
+/** De a cuántos puntos sube o baja el selector. */
+const PASO_PUNTOS = 10;
+
 export default function CheckoutScreen() {
-  const { tiendaId, items, subtotal, vaciarCarrito } = useCart();
+  const { tiendaId, items, subtotal, unidades, llevaAlcohol, vaciarCarrito } = useCart();
 
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
   const [direccionSeleccionada, setDireccionSeleccionada] = useState<string | null>(null);
@@ -28,12 +37,27 @@ export default function CheckoutScreen() {
   const [obteniendoUbicacion, setObteniendoUbicacion] = useState(false);
   const [verificandoSesion, setVerificandoSesion] = useState(true);
   const [necesitaLogin, setNecesitaLogin] = useState(false);
+  const [saldoPuntos, setSaldoPuntos] = useState(0);
+  const [puntosElegidos, setPuntosElegidos] = useState(0);
+  const [mayorDeEdad, setMayorDeEdad] = useState(false);
 
   const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
   const [nuevaCalle, setNuevaCalle] = useState('');
   const [nuevaCiudad, setNuevaCiudad] = useState('');
   const [nuevaRegion, setNuevaRegion] = useState('');
   const [guardandoDireccion, setGuardandoDireccion] = useState(false);
+
+  // Puntos: lo máximo que se puede usar es el menor entre el saldo y el tope del pedido
+  const topeCanje = topeCanjePesos(subtotal);
+  const maximoPuntos = Math.min(saldoPuntos, Math.floor(topeCanje / PESOS_POR_PUNTO_CANJE));
+  const puedeUsarPuntos = maximoPuntos >= MINIMO_CANJE;
+  const puntosUsados = puedeUsarPuntos ? Math.min(puntosElegidos, maximoPuntos) : 0;
+  const descuentoPuntos = puntosUsados * PESOS_POR_PUNTO_CANJE;
+
+  const sumarPuntos = () =>
+    setPuntosElegidos((p) => (p < MINIMO_CANJE ? MINIMO_CANJE : Math.min(maximoPuntos, p + PASO_PUNTOS)));
+  const restarPuntos = () =>
+    setPuntosElegidos((p) => (p <= MINIMO_CANJE ? 0 : Math.max(MINIMO_CANJE, p - PASO_PUNTOS)));
 
   const cargarDirecciones = () => {
     setCargandoDirecciones(true);
@@ -47,6 +71,12 @@ export default function CheckoutScreen() {
       .finally(() => setCargandoDirecciones(false));
   };
 
+  const cargarSaldo = () => {
+    apiUsers.get('/puntos/mios')
+      .then((res) => setSaldoPuntos(Number(res.data?.saldo ?? 0)))
+      .catch(() => setSaldoPuntos(0));
+  };
+
   useEffect(() => {
     haySesionActiva().then((logueado) => {
       setVerificandoSesion(false);
@@ -55,6 +85,7 @@ export default function CheckoutScreen() {
         return;
       }
       cargarDirecciones();
+      cargarSaldo();
     });
   }, []);
 
@@ -162,6 +193,11 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (llevaAlcohol && !mayorDeEdad) {
+      Alert.alert('Confirmá tu edad', 'Para comprar alcohol tenés que confirmar que sos mayor de 18 años');
+      return;
+    }
+
     const direccionTexto = `${direccion.calle}, ${direccion.ciudad}, ${direccion.region}`;
 
     setProcesando(true);
@@ -169,7 +205,15 @@ export default function CheckoutScreen() {
       const resPedido = await apiOrders.post('/pedidos', {
         tiendaId,
         direccionEnvio: direccionTexto,
-        items: items.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
+        items: items.map((i) => ({
+          productoId: i.productoId,
+          cantidad: i.cantidad,
+          varianteId: i.varianteId ?? null,
+          opcionesIds: i.opcionesIds ?? [],
+          nota: i.nota ?? null,
+        })),
+        puntosACanjear: puntosUsados,
+        confirmaMayorEdad: llevaAlcohol ? mayorDeEdad : false,
       });
 
       const pedidoId = resPedido.data.id;
@@ -179,7 +223,16 @@ export default function CheckoutScreen() {
       vaciarCarrito();
       router.replace({ pathname: '/pedido/[id]', params: { id: pedidoId } });
     } catch (err: any) {
-      const mensaje = err.response?.data?.message || 'No se pudo procesar el pedido';
+      const estado = err.response?.status;
+      const mensaje =
+        err.response?.data?.message ||
+        (estado === 409 && puntosUsados > 0
+          ? 'No se pudo procesar el pedido. Revisá que la tienda esté abierta y que tengas puntos suficientes.'
+          : estado === 409
+            ? 'Algún producto u opción ya no está disponible o la tienda está cerrada. Revisá tu carrito.'
+            : estado === 400
+              ? 'Revisá tu pedido: falta elegir alguna opción obligatoria o hay un dato inválido.'
+              : 'No se pudo procesar el pedido');
       Alert.alert('Error', mensaje);
     } finally {
       setProcesando(false);
@@ -247,7 +300,13 @@ export default function CheckoutScreen() {
   const costoEnvio = 2000;
   const gananciaConductor = 1200;
   const margenPlataformaEnvio = costoEnvio - gananciaConductor;
-  const total = subtotal + costoEnvio;
+  const total = subtotal + costoEnvio - descuentoPuntos;
+  const botonBloqueado = procesando || !direccionSeleccionada || (llevaAlcohol && !mayorDeEdad);
+
+  const avisoSinPuntos =
+    saldoPuntos < MINIMO_CANJE
+      ? `Necesitás al menos ${MINIMO_CANJE} puntos para pagar con puntos.`
+      : `Con este pedido podés usar hasta ${maximoPuntos} puntos (tope del ${TOPE_CANJE_PORCENTAJE} %). El mínimo es de ${MINIMO_CANJE}: sumá productos para poder usarlos.`;
 
   return (
     <>
@@ -380,6 +439,96 @@ export default function CheckoutScreen() {
           )}
         </View>
 
+        {llevaAlcohol && (
+          <View style={styles.seccion}>
+            <View style={styles.seccionHeader}>
+              <Ionicons name="shield-checkmark-outline" size={18} color="#1d1d1d" />
+              <Text style={styles.seccionTitulo}>Verificación de edad</Text>
+            </View>
+            <Text style={styles.edadTexto}>
+              Tu pedido incluye bebidas alcohólicas. La venta es solo para mayores de 18 años y
+              el repartidor puede pedirte tu cédula al entregar.
+            </Text>
+            <TouchableOpacity
+              style={[styles.edadCaja, mayorDeEdad && styles.edadCajaActiva]}
+              onPress={() => setMayorDeEdad((v) => !v)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.check, mayorDeEdad && styles.checkActivo]}>
+                {mayorDeEdad && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={styles.edadCajaTexto}>Confirmo que soy mayor de 18 años</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {saldoPuntos > 0 && (
+          <View style={styles.seccion}>
+            <View style={styles.seccionHeader}>
+              <Ionicons name="star" size={18} color="#6d28d9" />
+              <Text style={styles.seccionTitulo}>Pagar con puntos</Text>
+            </View>
+            <Text style={styles.puntosSaldo}>
+              Tenés {saldoPuntos} puntos (1 punto = ${PESOS_POR_PUNTO_CANJE})
+            </Text>
+
+            {puedeUsarPuntos ? (
+              <>
+                <Text style={styles.puntosReglas}>
+                  Podés usar entre {MINIMO_CANJE} y {maximoPuntos} puntos en este pedido ({TOPE_CANJE_PORCENTAJE} % del
+                  subtotal de productos, sin el envío).
+                </Text>
+
+                <View style={styles.selectorPuntos}>
+                  <TouchableOpacity
+                    style={[styles.botonPaso, puntosUsados === 0 && styles.botonPasoInactivo]}
+                    onPress={restarPuntos}
+                    disabled={puntosUsados === 0}
+                  >
+                    <Ionicons name="remove" size={22} color="#fff" />
+                  </TouchableOpacity>
+
+                  <View style={styles.selectorValor}>
+                    <Text style={styles.selectorPuntosNumero}>{puntosUsados}</Text>
+                    <Text style={styles.selectorPuntosEquivale}>
+                      {puntosUsados === 1 ? 'punto' : 'puntos'} = ${descuentoPuntos.toLocaleString('es-CL')}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.botonPaso, puntosUsados >= maximoPuntos && styles.botonPasoInactivo]}
+                    onPress={sumarPuntos}
+                    disabled={puntosUsados >= maximoPuntos}
+                  >
+                    <Ionicons name="add" size={22} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.atajosPuntos}>
+                  <TouchableOpacity
+                    style={styles.atajoPuntos}
+                    onPress={() => setPuntosElegidos(0)}
+                    disabled={puntosUsados === 0}
+                  >
+                    <Text style={[styles.atajoPuntosTexto, puntosUsados === 0 && { opacity: 0.4 }]}>No usar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.atajoPuntos}
+                    onPress={() => setPuntosElegidos(maximoPuntos)}
+                    disabled={puntosUsados === maximoPuntos}
+                  >
+                    <Text style={[styles.atajoPuntosTexto, puntosUsados === maximoPuntos && { opacity: 0.4 }]}>
+                      Usar el máximo ({maximoPuntos})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <Text style={styles.puntosReglas}>{avisoSinPuntos}</Text>
+            )}
+          </View>
+        )}
+
         <View style={styles.seccion}>
           <View style={styles.seccionHeader}>
             <Ionicons name="receipt-outline" size={18} color="#c1121f" />
@@ -387,9 +536,15 @@ export default function CheckoutScreen() {
           </View>
 
           <View style={styles.fila}>
-            <Text style={styles.filaLabel}>Subtotal ({items.length} {items.length === 1 ? 'producto' : 'productos'})</Text>
+            <Text style={styles.filaLabel}>Subtotal ({unidades} {unidades === 1 ? 'unidad' : 'unidades'})</Text>
             <Text style={styles.filaValor}>${subtotal.toLocaleString('es-CL')}</Text>
           </View>
+          {descuentoPuntos > 0 && (
+            <View style={styles.fila}>
+              <Text style={[styles.filaLabel, { color: '#6d28d9' }]}>Pagado con {puntosUsados} puntos</Text>
+              <Text style={[styles.filaValor, { color: '#6d28d9' }]}>-${descuentoPuntos.toLocaleString('es-CL')}</Text>
+            </View>
+          )}
           <View style={styles.fila}>
             <Text style={styles.filaLabel}>Envío</Text>
             <Text style={styles.filaValor}>${costoEnvio.toLocaleString('es-CL')}</Text>
@@ -404,9 +559,9 @@ export default function CheckoutScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.boton, (procesando || !direccionSeleccionada) && styles.botonDeshabilitado]}
+          style={[styles.boton, botonBloqueado && styles.botonDeshabilitado]}
           onPress={confirmarPedido}
-          disabled={procesando || !direccionSeleccionada}
+          disabled={botonBloqueado}
         >
           {procesando ? (
             <ActivityIndicator color="#fff" />
@@ -503,10 +658,45 @@ const styles = StyleSheet.create({
   },
   botonGuardarDireccionTexto: { color: '#fff', fontWeight: '700' },
 
+  edadTexto: { fontSize: 12.5, color: '#666', lineHeight: 18, marginBottom: 12 },
+  edadCaja: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1.5, borderColor: '#eee', borderRadius: 12, padding: 14,
+    backgroundColor: '#faf8f6',
+  },
+  edadCajaActiva: { borderColor: '#c1121f', backgroundColor: '#fdf0f1' },
+  edadCajaTexto: { flex: 1, fontSize: 14, fontWeight: '700', color: '#1d1d1d' },
+  check: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#c1121f',
+    justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff',
+  },
+  checkActivo: { backgroundColor: '#c1121f' },
+
   fila: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   filaLabel: { fontSize: 13.5, color: '#666' },
   filaValor: { fontSize: 13.5, fontWeight: '700', color: '#1d1d1d' },
   notaEnvio: { fontSize: 10.5, color: '#999', marginTop: -6, marginBottom: 10 },
+
+  puntosSaldo: { fontSize: 12.5, color: '#6d28d9', fontWeight: '700', marginBottom: 6 },
+  puntosReglas: { fontSize: 11.5, color: '#7a6a99', lineHeight: 16, marginBottom: 12 },
+  selectorPuntos: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#f6f2ff', borderRadius: 14, padding: 12, marginBottom: 10,
+  },
+  botonPaso: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: '#6d28d9',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  botonPasoInactivo: { backgroundColor: '#c4b5fd' },
+  selectorValor: { alignItems: 'center', flex: 1 },
+  selectorPuntosNumero: { fontSize: 26, fontWeight: '800', color: '#6d28d9' },
+  selectorPuntosEquivale: { fontSize: 12, fontWeight: '600', color: '#7a6a99', marginTop: 2 },
+  atajosPuntos: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  atajoPuntos: {
+    flex: 1, borderWidth: 1.5, borderColor: '#c4b5fd', borderRadius: 10,
+    paddingVertical: 9, alignItems: 'center',
+  },
+  atajoPuntosTexto: { color: '#6d28d9', fontWeight: '700', fontSize: 12.5 },
   filaTotal: { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f0f0f0', marginBottom: 0 },
   totalLabel: { fontSize: 16, fontWeight: '800', color: '#1d1d1d' },
   totalValor: { fontSize: 18, fontWeight: '800', color: '#c1121f' },

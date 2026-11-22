@@ -117,6 +117,7 @@ export default function RegistrarConductorScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ej: Honda CB110"
+          placeholderTextColor="#999"
           value={modelo}
           onChangeText={(v) => setModelo(limpiarModelo(v))}
           maxLength={LIMITES.modelo}
@@ -126,6 +127,7 @@ export default function RegistrarConductorScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ej: ABCD12"
+          placeholderTextColor="#999"
           value={patente}
           onChangeText={(v) => setPatente(limpiarPatente(v))}
           maxLength={LIMITES.patente}

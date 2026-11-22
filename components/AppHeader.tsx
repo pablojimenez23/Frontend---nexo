@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { apiUsers } from '@/services/api';
 import { haySesionActiva } from '@/hooks/useAuth';
+import { alCerrarSesion } from '@/services/sesion';
 
 export function AppHeader() {
   const { items } = useCart();
@@ -14,48 +15,83 @@ export function AppHeader() {
 
   const cantidadCarrito = items.reduce((acc, i) => acc + i.cantidad, 0);
 
+  // Al cerrar sesión se limpia todo al instante
   useEffect(() => {
-    const consultar = () => {
-      haySesionActiva().then((logueado) => {
-        if (!logueado) {
-          setNoLeidas(0);
-          return;
-        }
-        apiUsers.get('/notificaciones/no-leidas')
-          .then((res) => setNoLeidas(res.data.cantidad))
-          .catch(() => {});
-      });
-    };
-    consultar();
-    const intervalo = setInterval(consultar, 15000);
-    return () => clearInterval(intervalo);
+    return alCerrarSesion(() => {
+      setNoLeidas(0);
+      setDireccionCorta(null);
+    });
   }, []);
 
   useEffect(() => {
-    const consultarDireccion = () => {
-      haySesionActiva().then((logueado) => {
-        if (!logueado) {
-          setDireccionCorta(null);
-          return;
+    let activo = true;
+
+    const consultar = async () => {
+      const logueado = await haySesionActiva();
+      if (!activo) return;
+
+      if (!logueado) {
+        setNoLeidas(0);
+        return;
+      }
+
+      try {
+        const res = await apiUsers.get('/notificaciones/no-leidas');
+        // Si mientras tanto se cerró la sesión, se descarta la respuesta
+        if (activo && (await haySesionActiva())) {
+          setNoLeidas(res.data.cantidad ?? 0);
+        } else if (activo) {
+          setNoLeidas(0);
         }
-        apiUsers.get('/direcciones')
-          .then((res) => {
-            const primera = res.data[0];
-            if (primera?.calle) {
-              const texto = primera.calle.length > 22
-                ? primera.calle.slice(0, 22) + '…'
-                : primera.calle;
-              setDireccionCorta(texto);
-            } else {
-              setDireccionCorta(null);
-            }
-          })
-          .catch(() => {});
-      });
+      } catch {
+        // Sin sesión válida o sin conexión: no se muestra un número viejo
+        if (activo) setNoLeidas(0);
+      }
     };
+
+    consultar();
+    const intervalo = setInterval(consultar, 15000);
+    return () => {
+      activo = false;
+      clearInterval(intervalo);
+    };
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
+
+    const consultarDireccion = async () => {
+      const logueado = await haySesionActiva();
+      if (!activo) return;
+
+      if (!logueado) {
+        setDireccionCorta(null);
+        return;
+      }
+
+      try {
+        const res = await apiUsers.get('/direcciones');
+        if (!activo) return;
+        const primera = res.data[0];
+        if (primera?.calle) {
+          const texto = primera.calle.length > 22
+            ? primera.calle.slice(0, 22) + '…'
+            : primera.calle;
+          setDireccionCorta(texto);
+        } else {
+          setDireccionCorta(null);
+        }
+      } catch {
+        if (activo) setDireccionCorta(null);
+      }
+    };
+
     consultarDireccion();
     const intervalo = setInterval(consultarDireccion, 5000);
-    return () => clearInterval(intervalo);
+    return () => {
+      activo = false;
+      clearInterval(intervalo);
+    };
   }, []);
 
   const handlePresionarCarrito = () => {
@@ -104,6 +140,8 @@ export function AppHeader() {
     </SafeAreaView>
   );
 }
+
+export default AppHeader;
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: '#c1121f' },

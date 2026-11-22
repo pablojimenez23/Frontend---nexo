@@ -1,14 +1,26 @@
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { useState, useCallback, useMemo } from 'react';
 import { router, useFocusEffect, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiOrders, apiUsers } from '@/services/api';
+import {
+  FILTROS_FECHA,
+  FiltroFecha,
+  GRUPOS_CONDUCTOR,
+  PRIORIDAD_CONDUCTOR,
+  dentroDeFecha,
+  enGrupo,
+  formatearFechaHora,
+  normalizar,
+  ordenarPedidos,
+} from '@/services/pedidos';
 
 type Pedido = {
   id: string;
   estado: string;
   direccionEnvio: string;
   gananciaConductor: number | null;
+  creadoEn?: string | null;
 };
 
 type Calificacion = {
@@ -18,11 +30,40 @@ type Calificacion = {
   creadoEn: string;
 };
 
+const ETIQUETA_ESTADO: Record<string, string> = {
+  DELIVERING: 'En camino',
+  DELIVERED: 'Por confirmar',
+  COMPLETED: 'Completada',
+  CANCELLED: 'Cancelada',
+};
+
+const FILTROS_PUNTAJE: { clave: string; label: string }[] = [
+  { clave: 'todas', label: 'Todas' },
+  { clave: '5', label: '5 ★' },
+  { clave: '4', label: '4 ★' },
+  { clave: 'bajas', label: '1 a 3 ★' },
+];
+
+const coincidePuntaje = (puntaje: number, filtro: string) => {
+  if (filtro === 'todas') return true;
+  if (filtro === 'bajas') return puntaje <= 3;
+  return puntaje === Number(filtro);
+};
+
 export default function ConductorActividadScreen() {
   const [entregas, setEntregas] = useState<Pedido[]>([]);
   const [calificaciones, setCalificaciones] = useState<Calificacion[]>([]);
   const [tab, setTab] = useState<'entregas' | 'calificaciones'>('entregas');
   const [cargando, setCargando] = useState(true);
+
+  // Filtros de entregas
+  const [grupo, setGrupo] = useState('todos');
+  const [fecha, setFecha] = useState<FiltroFecha>('todos');
+  const [busqueda, setBusqueda] = useState('');
+
+  // Filtros de calificaciones
+  const [puntaje, setPuntaje] = useState('todas');
+  const [fechaCal, setFechaCal] = useState<FiltroFecha>('todos');
 
   const cargarDatos = useCallback(async () => {
     setCargando(true);
@@ -48,7 +89,46 @@ export default function ConductorActividadScreen() {
     }, [cargarDatos])
   );
 
-  const totalGanado = entregas.reduce((acc, p) => acc + (p.gananciaConductor ?? 0), 0);
+  // ---- Entregas filtradas ----
+  const baseEntregas = useMemo(() => {
+    const q = normalizar(busqueda.trim());
+    return entregas.filter((p) => {
+      if (!dentroDeFecha(p.creadoEn, fecha)) return false;
+      if (!q) return true;
+      const etiqueta = ETIQUETA_ESTADO[p.estado] ?? p.estado;
+      return normalizar(`${p.direccionEnvio} ${etiqueta}`).includes(q);
+    });
+  }, [entregas, fecha, busqueda]);
+
+  const entregasVisibles = useMemo(() => {
+    const estados = GRUPOS_CONDUCTOR.find((g) => g.clave === grupo)?.estados ?? null;
+    return ordenarPedidos(baseEntregas.filter((p) => enGrupo(p.estado, estados)), PRIORIDAD_CONDUCTOR);
+  }, [baseEntregas, grupo]);
+
+  const hayFiltrosEntregas = grupo !== 'todos' || fecha !== 'todos' || busqueda.trim() !== '';
+
+  const limpiarFiltrosEntregas = () => {
+    setGrupo('todos');
+    setFecha('todos');
+    setBusqueda('');
+  };
+
+  // ---- Calificaciones filtradas ----
+  const calificacionesVisibles = useMemo(() => {
+    return calificaciones
+      .filter((c) => coincidePuntaje(c.puntaje, puntaje) && dentroDeFecha(c.creadoEn, fechaCal))
+      .sort((a, b) => new Date(b.creadoEn).getTime() - new Date(a.creadoEn).getTime());
+  }, [calificaciones, puntaje, fechaCal]);
+
+  const hayFiltrosCal = puntaje !== 'todas' || fechaCal !== 'todos';
+
+  const limpiarFiltrosCal = () => {
+    setPuntaje('todas');
+    setFechaCal('todos');
+  };
+
+  // Los totales siguen a los filtros: así podés ver cuánto ganaste hoy, en 7 días, etc.
+  const totalGanado = entregasVisibles.reduce((acc, p) => acc + (p.gananciaConductor ?? 0), 0);
   const promedio = calificaciones.length > 0
     ? calificaciones.reduce((acc, c) => acc + c.puntaje, 0) / calificaciones.length
     : 0;
@@ -102,7 +182,9 @@ export default function ConductorActividadScreen() {
               <Ionicons name="cash-outline" size={18} color="#2a9d8f" />
             </View>
             <Text style={styles.statValor}>${totalGanado.toLocaleString('es-CL')}</Text>
-            <Text style={styles.statLabel}>Ganado en total</Text>
+            <Text style={styles.statLabel}>
+              {hayFiltrosEntregas ? 'Ganado (filtrado)' : 'Ganado en total'}
+            </Text>
           </View>
 
           <View style={styles.statCard}>
@@ -117,8 +199,8 @@ export default function ConductorActividadScreen() {
             <View style={styles.statIconoWrapper}>
               <Ionicons name="bicycle-outline" size={18} color="#8a6109" />
             </View>
-            <Text style={styles.statValor}>{entregas.length}</Text>
-            <Text style={styles.statLabel}>Entregas</Text>
+            <Text style={styles.statValor}>{entregasVisibles.length}</Text>
+            <Text style={styles.statLabel}>{hayFiltrosEntregas ? 'Entregas (filtradas)' : 'Entregas'}</Text>
           </View>
         </View>
 
@@ -146,27 +228,105 @@ export default function ConductorActividadScreen() {
               <Text style={styles.mensajeVacio}>Todavía no hiciste entregas</Text>
             </View>
           ) : (
-            <FlatList
-              data={entregas}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.list}
-              renderItem={({ item }) => (
-                <View style={styles.card}>
-                  <View style={styles.filaInfo}>
-                    <View style={styles.filaIconoWrapper}>
-                      <Ionicons name="location-outline" size={16} color="#c1121f" />
+            <View style={{ flex: 1 }}>
+              <View style={styles.buscador}>
+                <Ionicons name="search-outline" size={16} color="#999" />
+                <TextInput
+                  style={styles.buscadorInput}
+                  placeholder="Buscar por dirección o estado"
+                  placeholderTextColor="#999"
+                  value={busqueda}
+                  onChangeText={setBusqueda}
+                  maxLength={60}
+                />
+                {busqueda.length > 0 && (
+                  <TouchableOpacity onPress={() => setBusqueda('')}>
+                    <Ionicons name="close-circle" size={16} color="#c9a3a3" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+                {GRUPOS_CONDUCTOR.map((g) => {
+                  const activo = grupo === g.clave;
+                  const cantidad = baseEntregas.filter((p) => enGrupo(p.estado, g.estados)).length;
+                  return (
+                    <TouchableOpacity
+                      key={g.clave}
+                      style={[styles.chip, activo && styles.chipActivo]}
+                      onPress={() => setGrupo(g.clave)}
+                    >
+                      <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
+                        {g.label} {cantidad}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+                {FILTROS_FECHA.map((f) => {
+                  const activo = fecha === f.clave;
+                  return (
+                    <TouchableOpacity
+                      key={f.clave}
+                      style={[styles.chipFecha, activo && styles.chipFechaActivo]}
+                      onPress={() => setFecha(f.clave)}
+                    >
+                      <Text style={[styles.chipFechaTexto, activo && styles.chipFechaTextoActivo]}>{f.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <FlatList
+                data={entregasVisibles}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.list}
+                keyboardShouldPersistTaps="handled"
+                ListHeaderComponent={
+                  <Text style={styles.contador}>
+                    {hayFiltrosEntregas
+                      ? `${entregasVisibles.length} de ${entregas.length} entregas`
+                      : `${entregas.length} ${entregas.length === 1 ? 'entrega' : 'entregas'}`}
+                  </Text>
+                }
+                ListEmptyComponent={
+                  <View style={styles.sinResultados}>
+                    <Ionicons name="funnel-outline" size={28} color="#c9a3a3" style={{ marginBottom: 8 }} />
+                    <Text style={styles.mensajeVacio}>No hay entregas con estos filtros</Text>
+                    <TouchableOpacity style={styles.botonLimpiar} onPress={limpiarFiltrosEntregas}>
+                      <Text style={styles.botonLimpiarTexto}>Limpiar filtros</Text>
+                    </TouchableOpacity>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  const fechaTexto = formatearFechaHora(item.creadoEn);
+                  return (
+                    <View style={styles.card}>
+                      <View style={styles.filaEstadoFecha}>
+                        <View style={styles.badgeEstado}>
+                          <Text style={styles.badgeEstadoTexto}>{ETIQUETA_ESTADO[item.estado] ?? item.estado}</Text>
+                        </View>
+                        {fechaTexto !== '' && <Text style={styles.fecha}>{fechaTexto}</Text>}
+                      </View>
+                      <View style={styles.filaInfo}>
+                        <View style={styles.filaIconoWrapper}>
+                          <Ionicons name="location-outline" size={16} color="#c1121f" />
+                        </View>
+                        <Text style={styles.direccion} numberOfLines={2}>{item.direccionEnvio}</Text>
+                      </View>
+                      <View style={styles.filaGanancia}>
+                        <Text style={styles.gananciaLabel}>Ganaste</Text>
+                        <Text style={styles.gananciaValor}>
+                          +${(item.gananciaConductor ?? 0).toLocaleString('es-CL')}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={styles.direccion} numberOfLines={2}>{item.direccionEnvio}</Text>
-                  </View>
-                  <View style={styles.filaGanancia}>
-                    <Text style={styles.gananciaLabel}>Ganaste</Text>
-                    <Text style={styles.gananciaValor}>
-                      +${(item.gananciaConductor ?? 0).toLocaleString('es-CL')}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            />
+                  );
+                }}
+              />
+            </View>
           )
         ) : calificaciones.length === 0 ? (
           <View style={styles.centerVacio}>
@@ -174,34 +334,87 @@ export default function ConductorActividadScreen() {
             <Text style={styles.mensajeVacio}>Todavía no tenés calificaciones</Text>
           </View>
         ) : (
-          <FlatList
-            data={calificaciones}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            renderItem={({ item }) => (
-              <View style={styles.card}>
-                <View style={styles.filaEstrellas}>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <Ionicons
-                      key={n}
-                      name={n <= item.puntaje ? 'star' : 'star-outline'}
-                      size={16}
-                      color="#c1121f"
-                      style={{ marginRight: 2 }}
-                    />
-                  ))}
-                </View>
-                {item.comentario ? (
-                  <Text style={styles.comentario}>{item.comentario}</Text>
-                ) : (
-                  <Text style={styles.sinComentario}>Sin comentario</Text>
-                )}
-                <Text style={styles.fecha}>
-                  {new Date(item.creadoEn).toLocaleDateString('es-CL')}
+          <View style={{ flex: 1 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+              {FILTROS_PUNTAJE.map((f) => {
+                const activo = puntaje === f.clave;
+                const cantidad = calificaciones.filter(
+                  (c) => coincidePuntaje(c.puntaje, f.clave) && dentroDeFecha(c.creadoEn, fechaCal)
+                ).length;
+                return (
+                  <TouchableOpacity
+                    key={f.clave}
+                    style={[styles.chip, activo && styles.chipActivo]}
+                    onPress={() => setPuntaje(f.clave)}
+                  >
+                    <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
+                      {f.label} {cantidad}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+              {FILTROS_FECHA.map((f) => {
+                const activo = fechaCal === f.clave;
+                return (
+                  <TouchableOpacity
+                    key={f.clave}
+                    style={[styles.chipFecha, activo && styles.chipFechaActivo]}
+                    onPress={() => setFechaCal(f.clave)}
+                  >
+                    <Text style={[styles.chipFechaTexto, activo && styles.chipFechaTextoActivo]}>{f.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <FlatList
+              data={calificacionesVisibles}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.list}
+              ListHeaderComponent={
+                <Text style={styles.contador}>
+                  {hayFiltrosCal
+                    ? `${calificacionesVisibles.length} de ${calificaciones.length} calificaciones`
+                    : `${calificaciones.length} ${calificaciones.length === 1 ? 'calificación' : 'calificaciones'}`}
                 </Text>
-              </View>
-            )}
-          />
+              }
+              ListEmptyComponent={
+                <View style={styles.sinResultados}>
+                  <Ionicons name="funnel-outline" size={28} color="#c9a3a3" style={{ marginBottom: 8 }} />
+                  <Text style={styles.mensajeVacio}>No hay calificaciones con estos filtros</Text>
+                  <TouchableOpacity style={styles.botonLimpiar} onPress={limpiarFiltrosCal}>
+                    <Text style={styles.botonLimpiarTexto}>Limpiar filtros</Text>
+                  </TouchableOpacity>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <View style={styles.card}>
+                  <View style={styles.filaEstrellas}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Ionicons
+                        key={n}
+                        name={n <= item.puntaje ? 'star' : 'star-outline'}
+                        size={16}
+                        color="#c1121f"
+                        style={{ marginRight: 2 }}
+                      />
+                    ))}
+                  </View>
+                  {item.comentario ? (
+                    <Text style={styles.comentario}>{item.comentario}</Text>
+                  ) : (
+                    <Text style={styles.sinComentario}>Sin comentario</Text>
+                  )}
+                  <Text style={styles.fecha}>
+                    {new Date(item.creadoEn).toLocaleDateString('es-CL')}
+                  </Text>
+                </View>
+              )}
+            />
+          </View>
         )}
       </View>
     </>
@@ -259,6 +472,35 @@ const styles = StyleSheet.create({
   tabTexto: { fontSize: 13, color: '#999', fontWeight: '700' },
   tabTextoActivo: { color: '#c1121f' },
 
+  buscador: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fff', borderRadius: 12, marginHorizontal: 20, marginBottom: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4,
+    elevation: 1,
+  },
+  buscadorInput: { flex: 1, fontSize: 14, padding: 0, color: '#1d1d1d' },
+  chipsFila: { paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+  chip: {
+    borderWidth: 1.5, borderColor: '#eee', backgroundColor: '#fff', borderRadius: 20,
+    paddingVertical: 7, paddingHorizontal: 14,
+  },
+  chipActivo: { borderColor: '#c1121f', backgroundColor: '#fdf0f1' },
+  chipTexto: { fontSize: 12.5, fontWeight: '700', color: '#666' },
+  chipTextoActivo: { color: '#c1121f' },
+  chipFecha: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 14 },
+  chipFechaActivo: { backgroundColor: '#1d1d1d' },
+  chipFechaTexto: { fontSize: 12, fontWeight: '600', color: '#999' },
+  chipFechaTextoActivo: { color: '#fff' },
+  contador: { fontSize: 12, color: '#999', marginBottom: 10, marginLeft: 2, marginTop: 4 },
+
+  sinResultados: { alignItems: 'center', paddingTop: 40 },
+  botonLimpiar: {
+    marginTop: 14, borderWidth: 1.5, borderColor: '#c1121f', borderRadius: 10,
+    paddingVertical: 9, paddingHorizontal: 18,
+  },
+  botonLimpiarTexto: { color: '#c1121f', fontWeight: '700', fontSize: 13 },
+
   centerVacio: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   mensajeVacio: { fontSize: 15, fontWeight: '700', color: '#1d1d1d', textAlign: 'center' },
 
@@ -268,6 +510,13 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8,
     elevation: 3,
   },
+
+  filaEstadoFecha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  badgeEstado: {
+    alignSelf: 'flex-start', backgroundColor: '#fdf0f1', borderRadius: 20,
+    paddingVertical: 4, paddingHorizontal: 12,
+  },
+  badgeEstadoTexto: { fontSize: 11, fontWeight: '800', color: '#c1121f' },
 
   filaInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
   filaIconoWrapper: {

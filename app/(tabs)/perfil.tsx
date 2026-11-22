@@ -6,6 +6,8 @@ import * as SecureStore from 'expo-secure-store';
 import * as Location from 'expo-location';
 import { apiUsers, apiStores } from '@/services/api';
 import { haySesionActiva } from '@/hooks/useAuth';
+import { avisarSesionCerrada } from '@/services/sesion';
+import { formatearFecha } from '@/services/puntos';
 
 type Usuario = {
   nombre: string;
@@ -27,11 +29,19 @@ type Tienda = {
   estado: string;
 };
 
+type Vencimiento = {
+  puntos: number;
+  fecha: string;
+  pronto: boolean;
+};
+
 export default function PerfilScreen() {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
   const [tienda, setTienda] = useState<Tienda | null>(null);
   const [estadoConductor, setEstadoConductor] = useState<string | null>(null);
+  const [puntos, setPuntos] = useState<number | null>(null);
+  const [vencimiento, setVencimiento] = useState<Vencimiento | null>(null);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [verificandoSesion, setVerificandoSesion] = useState(true);
@@ -43,26 +53,35 @@ export default function PerfilScreen() {
   const [nuevaRegion, setNuevaRegion] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  const cargarPerfil = (esRefresh = false) => {
+  const cargarPerfil = async (esRefresh = false) => {
     if (esRefresh) setRefrescando(true);
     else setCargando(true);
 
-    Promise.all([
-      apiUsers.get('/usuarios/me'),
-      apiUsers.get('/direcciones'),
-      apiStores.get('/tiendas/mi-tienda'),
-      apiUsers.get('/conductores/me').catch(() => null),
-    ])
-      .then(([resUsuario, resDirecciones, resTiendas, resConductor]) => {
-        setUsuario(resUsuario.data);
-        setDirecciones(resDirecciones.data);
-        setTienda(resTiendas.data.length > 0 ? resTiendas.data[0] : null);
-        setEstadoConductor(resConductor ? resConductor.data.estado : null);
-      })
-      .finally(() => {
-        setCargando(false);
-        setRefrescando(false);
-      });
+    const resUsuario = await apiUsers.get('/usuarios/me').catch(() => null);
+    const resDirecciones = await apiUsers.get('/direcciones').catch(() => null);
+    const resTiendas = await apiStores.get('/tiendas/mi-tienda').catch(() => null);
+    const resConductor = await apiUsers.get('/conductores/me').catch(() => null);
+    const resPuntos = await apiUsers.get('/puntos/mios').catch(() => null);
+
+    if (resUsuario) setUsuario(resUsuario.data);
+    if (resDirecciones) setDirecciones(resDirecciones.data);
+    setTienda(resTiendas && resTiendas.data.length > 0 ? resTiendas.data[0] : null);
+    setEstadoConductor(resConductor ? resConductor.data.estado : null);
+    setPuntos(resPuntos ? Number(resPuntos.data?.saldo ?? 0) : null);
+
+    const proximo = resPuntos?.data?.proximoVencimiento;
+    setVencimiento(
+      proximo
+        ? {
+            puntos: Number(resPuntos?.data?.puntosProximoVencimiento ?? 0),
+            fecha: formatearFecha(proximo),
+            pronto: Number(resPuntos?.data?.puntosPorVencer ?? 0) > 0,
+          }
+        : null
+    );
+
+    setCargando(false);
+    setRefrescando(false);
   };
 
   useFocusEffect(
@@ -154,6 +173,8 @@ export default function PerfilScreen() {
   const cerrarSesion = async () => {
     await SecureStore.deleteItemAsync('access_token');
     await SecureStore.deleteItemAsync('refresh_token');
+    // Limpia el contador de notificaciones y la dirección del header al instante
+    avisarSesionCerrada();
     router.replace('/(tabs)/inicio');
   };
 
@@ -233,7 +254,28 @@ export default function PerfilScreen() {
                 {direcciones.length} {direcciones.length === 1 ? 'dirección' : 'direcciones'}
               </Text>
             </View>
+            {puntos !== null && (
+              <View style={styles.puntosChip}>
+                <Ionicons name="star" size={12} color="#6d28d9" />
+                <Text style={styles.puntosChipTexto}>
+                  {puntos} {puntos === 1 ? 'punto' : 'puntos'}
+                </Text>
+              </View>
+            )}
           </View>
+
+          {vencimiento && (
+            <View style={[styles.vencimientoChip, vencimiento.pronto && styles.vencimientoChipPronto]}>
+              <Ionicons
+                name="time-outline"
+                size={13}
+                color={vencimiento.pronto ? '#8a6109' : '#7a6a99'}
+              />
+              <Text style={[styles.vencimientoTexto, vencimiento.pronto && styles.vencimientoTextoPronto]}>
+                {vencimiento.puntos} {vencimiento.puntos === 1 ? 'punto vence' : 'puntos vencen'} el {vencimiento.fecha}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.accesos}>
@@ -444,6 +486,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fdf0f1', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
   },
   statChipTexto: { fontSize: 11, fontWeight: '700', color: '#c1121f' },
+  puntosChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#f3ecff', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14,
+  },
+  puntosChipTexto: { fontSize: 11, fontWeight: '700', color: '#6d28d9' },
+  vencimientoChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#f6f2ff', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12,
+    marginTop: 10,
+  },
+  vencimientoChipPronto: { backgroundColor: '#fff3d6' },
+  vencimientoTexto: { fontSize: 11, fontWeight: '600', color: '#7a6a99' },
+  vencimientoTextoPronto: { color: '#8a6109' },
 
   accesos: { marginBottom: 20 },
   accesoCard: {

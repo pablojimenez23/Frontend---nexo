@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { apiOrders, apiStores, apiUsers } from '@/services/api';
+import { puntosGanadosDe } from '@/services/puntos';
 
 type Pedido = {
   id: string;
@@ -13,6 +14,8 @@ type Pedido = {
   direccionEnvio: string;
   tiendaId: string;
   conductorId: string | null;
+  descuentoPuntos?: number | null;
+  puntosCanjeados?: number | null;
 };
 
 const ESTADOS: Record<string, {
@@ -36,6 +39,7 @@ export default function PedidoConfirmadoScreen() {
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [cargando, setCargando] = useState(true);
   const [confirmando, setConfirmando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const [pasoCalificacion, setPasoCalificacion] = useState<'ninguno' | 'tienda' | 'conductor'>('ninguno');
   const [puntaje, setPuntaje] = useState(0);
@@ -61,6 +65,37 @@ export default function PedidoConfirmadoScreen() {
     } finally {
       setConfirmando(false);
     }
+  };
+
+  const cancelarPedido = () => {
+    const usoPuntos = Number(pedido?.descuentoPuntos ?? 0) > 0;
+    const aviso =
+      pedido?.estado === 'READY'
+        ? 'El pedido ya está listo: se te cobrará un cargo del 20% del subtotal.'
+        : usoPuntos
+          ? 'Se te devolverán los puntos que usaste.'
+          : '¿Seguro que querés cancelar este pedido?';
+
+    Alert.alert('Cancelar pedido', aviso, [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí, cancelar',
+        style: 'destructive',
+        onPress: async () => {
+          setCancelando(true);
+          try {
+            const res = await apiOrders.patch(`/pedidos/${id}/cancelar`, {
+              motivo: 'Cancelado por el cliente',
+            });
+            setPedido(res.data);
+          } catch {
+            Alert.alert('Error', 'No se pudo cancelar el pedido');
+          } finally {
+            setCancelando(false);
+          }
+        },
+      },
+    ]);
   };
 
   const abrirPasoSiguiente = () => {
@@ -120,6 +155,8 @@ export default function PedidoConfirmadoScreen() {
   }
 
   const info = ESTADOS[pedido.estado] ?? ESTADOS.CREATED;
+  const descuentoPuntos = Number(pedido.descuentoPuntos ?? 0);
+  const puntosGanados = puntosGanadosDe(pedido.total);
 
   return (
     <View style={styles.pantalla}>
@@ -164,6 +201,20 @@ export default function PedidoConfirmadoScreen() {
             </View>
           </View>
 
+          {descuentoPuntos > 0 && (
+            <View style={styles.filaResumen}>
+              <View style={[styles.filaIconoWrapper, { backgroundColor: '#f3ecff' }]}>
+                <Ionicons name="star" size={16} color="#6d28d9" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.filaLabel}>Pagado con {pedido.puntosCanjeados} puntos</Text>
+                <Text style={[styles.filaValorChico, { color: '#6d28d9' }]}>
+                  -${descuentoPuntos.toLocaleString('es-CL')}
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.filaResumen}>
             <View style={styles.filaIconoWrapper}>
               <Ionicons name="bicycle-outline" size={16} color="#c1121f" />
@@ -180,6 +231,22 @@ export default function PedidoConfirmadoScreen() {
             <Text style={styles.totalLabel}>Total pagado</Text>
             <Text style={styles.totalValor}>${pedido.total.toLocaleString('es-CL')}</Text>
           </View>
+
+          {pedido.estado === 'CANCELLED' && Number(pedido.puntosCanjeados ?? 0) > 0 && (
+            <View style={styles.filaPuntosGanados}>
+              <Ionicons name="star" size={14} color="#6d28d9" />
+              <Text style={styles.puntosGanadosTexto}>
+                Se te devolvieron {pedido.puntosCanjeados} puntos
+              </Text>
+            </View>
+          )}
+
+          {pedido.estado === 'COMPLETED' && puntosGanados > 0 && (
+            <View style={styles.filaPuntosGanados}>
+              <Ionicons name="star" size={14} color="#6d28d9" />
+              <Text style={styles.puntosGanadosTexto}>Ganaste {puntosGanados} puntos con este pedido</Text>
+            </View>
+          )}
         </View>
 
         {pedido.estado === 'DELIVERED' && (
@@ -190,6 +257,19 @@ export default function PedidoConfirmadoScreen() {
               <>
                 <Ionicons name="checkmark-circle" size={18} color="#fff" />
                 <Text style={styles.botonTexto}>Confirmar que lo recibí</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {['CREATED', 'PAID', 'READY'].includes(pedido.estado) && (
+          <TouchableOpacity style={styles.botonCancelar} onPress={cancelarPedido} disabled={cancelando}>
+            {cancelando ? (
+              <ActivityIndicator color="#c1121f" size="small" />
+            ) : (
+              <>
+                <Ionicons name="close-circle-outline" size={18} color="#c1121f" />
+                <Text style={styles.botonCancelarTexto}>Cancelar pedido</Text>
               </>
             )}
           </TouchableOpacity>
@@ -330,6 +410,12 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 15, fontWeight: '700', color: '#1d1d1d' },
   totalValor: { fontSize: 20, fontWeight: '800', color: '#c1121f' },
 
+  filaPuntosGanados: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14,
+    backgroundColor: '#f3ecff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12,
+  },
+  puntosGanadosTexto: { fontSize: 12.5, fontWeight: '700', color: '#6d28d9' },
+
   boton: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
     backgroundColor: '#c1121f', borderRadius: 12, paddingVertical: 15, paddingHorizontal: 32,
@@ -338,6 +424,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   botonTexto: { color: '#fff', fontWeight: '800', fontSize: 16 },
+
+  botonCancelar: {
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: '#c1121f', borderRadius: 12, paddingVertical: 13,
+    width: '100%', marginBottom: 10, backgroundColor: '#fff',
+  },
+  botonCancelarTexto: { color: '#c1121f', fontWeight: '800', fontSize: 15 },
 
   botonSecundario: { paddingVertical: 10 },
   botonSecundarioTexto: { color: '#666', fontWeight: '600', fontSize: 14 },
