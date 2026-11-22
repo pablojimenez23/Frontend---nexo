@@ -101,6 +101,7 @@ export default function RegistrarTiendaScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ej: Pizzería Don Mario"
+          placeholderTextColor="#999"
           value={nombre}
           onChangeText={(v) => setNombre(limpiarTexto(v, LIMITES.nombre))}
           maxLength={LIMITES.nombre}
@@ -111,6 +112,7 @@ export default function RegistrarTiendaScreen() {
         <TextInput
           style={[styles.input, styles.inputMultilinea]}
           placeholder="Contanos qué vendés y qué te hace especial"
+          placeholderTextColor="#999"
           value={descripcion}
           onChangeText={(v) => setDescripcion(limpiarTexto(v, LIMITES.descripcion))}
           maxLength={LIMITES.descripcion}
@@ -122,6 +124,7 @@ export default function RegistrarTiendaScreen() {
         <TextInput
           style={styles.input}
           placeholder="Calle, número, comuna"
+          placeholderTextColor="#999"
           value={direccion}
           onChangeText={(v) => setDireccion(limpiarTexto(v, LIMITES.direccion))}
           maxLength={LIMITES.direccion}
@@ -132,6 +135,7 @@ export default function RegistrarTiendaScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ej: 12:00-23:00"
+          placeholderTextColor="#999"
           value={horario}
           onChangeText={(v) => setHorario(limpiarHorario(v))}
           maxLength={LIMITES.horario}
@@ -142,6 +146,7 @@ export default function RegistrarTiendaScreen() {
         <TextInput
           style={styles.input}
           placeholder="0"
+          placeholderTextColor="#999"
           value={montoMinimo}
           onChangeText={(v) => setMontoMinimo(limpiarMonto(v))}
           keyboardType="numeric"

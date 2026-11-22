@@ -1,9 +1,11 @@
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
-import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert, ScrollView, TextInput } from 'react-native';
+import { useState, useCallback, useMemo } from 'react';
 import { router, useFocusEffect, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiUsers, apiOrders } from '@/services/api';
+import { useNoLeidas } from '@/hooks/useNoLeidas';
+import { formatearFechaHora, normalizar } from '@/services/pedidos';
 
 type Conductor = {
   id: string;
@@ -15,7 +17,18 @@ type Pedido = {
   estado: string;
   total: number;
   direccionEnvio: string;
+  creadoEn?: string | null;
 };
+
+type Orden = 'antiguos' | 'recientes' | 'monto';
+
+const ORDENES: { clave: Orden; label: string }[] = [
+  { clave: 'antiguos', label: 'Más antiguos' },
+  { clave: 'recientes', label: 'Más recientes' },
+  { clave: 'monto', label: 'Mayor monto' },
+];
+
+const tiempoDe = (p: Pedido) => (p.creadoEn ? new Date(p.creadoEn).getTime() : 0);
 
 export default function ConductorScreen() {
   const [conductor, setConductor] = useState<Conductor | null>(null);
@@ -24,7 +37,10 @@ export default function ConductorScreen() {
   const [cargando, setCargando] = useState(true);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
-  const [noLeidas, setNoLeidas] = useState(0);
+  const noLeidas = useNoLeidas();
+
+  const [busqueda, setBusqueda] = useState('');
+  const [orden, setOrden] = useState<Orden>('antiguos');
 
   const cargarDatos = useCallback(async () => {
     setCargando(true);
@@ -50,13 +66,22 @@ export default function ConductorScreen() {
     }, [cargarDatos])
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      apiUsers.get('/notificaciones/no-leidas')
-        .then((res) => setNoLeidas(res.data.cantidad))
-        .catch(() => {});
-    }, [])
-  );
+  const visibles = useMemo(() => {
+    const q = normalizar(busqueda.trim());
+    const lista = disponibles.filter((p) => !q || normalizar(p.direccionEnvio).includes(q));
+    return [...lista].sort((a, b) => {
+      if (orden === 'monto') return b.total - a.total;
+      if (orden === 'recientes') return tiempoDe(b) - tiempoDe(a);
+      return tiempoDe(a) - tiempoDe(b);
+    });
+  }, [disponibles, busqueda, orden]);
+
+  const hayFiltros = busqueda.trim() !== '' || orden !== 'antiguos';
+
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setOrden('antiguos');
+  };
 
   const cambiarDisponibilidad = async (nuevoEstado: string) => {
     setCambiandoEstado(true);
@@ -279,42 +304,94 @@ export default function ConductorScreen() {
             <Text style={styles.mensajeVacioSub}>No hay pedidos esperando reparto ahora mismo.</Text>
           </View>
         ) : (
-          <FlatList
-            data={disponibles}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            ListHeaderComponent={
-              <Text style={styles.contador}>
-                {disponibles.length} {disponibles.length === 1 ? 'pedido disponible' : 'pedidos disponibles'}
-              </Text>
-            }
-            renderItem={({ item }) => (
-              <View style={styles.card}>
-                <View style={styles.filaInfo}>
-                  <View style={styles.filaIconoWrapper}>
-                    <Ionicons name="location-outline" size={16} color="#c1121f" />
-                  </View>
-                  <Text style={styles.pedidoDireccion} numberOfLines={2}>{item.direccionEnvio}</Text>
-                </View>
-                <Text style={styles.pedidoTotal}>${item.total.toLocaleString('es-CL')}</Text>
-
-                <TouchableOpacity
-                  style={styles.botonAceptar}
-                  onPress={() => aceptarPedido(item.id)}
-                  disabled={procesandoId === item.id}
-                >
-                  {procesandoId === item.id ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="bicycle" size={16} color="#fff" />
-                      <Text style={styles.botonAceptarTexto}>Aceptar pedido</Text>
-                    </>
-                  )}
+          <View style={{ flex: 1 }}>
+            <View style={styles.buscador}>
+              <Ionicons name="search-outline" size={16} color="#999" />
+              <TextInput
+                style={styles.buscadorInput}
+                placeholder="Buscar por dirección"
+                placeholderTextColor="#999"
+                value={busqueda}
+                onChangeText={setBusqueda}
+                maxLength={60}
+              />
+              {busqueda.length > 0 && (
+                <TouchableOpacity onPress={() => setBusqueda('')}>
+                  <Ionicons name="close-circle" size={16} color="#c9a3a3" />
                 </TouchableOpacity>
-              </View>
-            )}
-          />
+              )}
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+              {ORDENES.map((o) => {
+                const activo = orden === o.clave;
+                return (
+                  <TouchableOpacity
+                    key={o.clave}
+                    style={[styles.chipFiltro, activo && styles.chipFiltroActivo]}
+                    onPress={() => setOrden(o.clave)}
+                  >
+                    <Text style={[styles.chipFiltroTexto, activo && styles.chipFiltroTextoActivo]}>{o.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <FlatList
+              data={visibles}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+              ListHeaderComponent={
+                <Text style={styles.contador}>
+                  {hayFiltros
+                    ? `${visibles.length} de ${disponibles.length} pedidos`
+                    : `${disponibles.length} ${disponibles.length === 1 ? 'pedido disponible' : 'pedidos disponibles'}`}
+                </Text>
+              }
+              ListEmptyComponent={
+                <View style={styles.sinResultados}>
+                  <Ionicons name="funnel-outline" size={28} color="#c9a3a3" style={{ marginBottom: 8 }} />
+                  <Text style={styles.mensajeVacio}>No hay pedidos con esa búsqueda</Text>
+                  <TouchableOpacity style={styles.botonLimpiar} onPress={limpiarFiltros}>
+                    <Text style={styles.botonLimpiarTexto}>Limpiar filtros</Text>
+                  </TouchableOpacity>
+                </View>
+              }
+              renderItem={({ item }) => {
+                const fechaTexto = formatearFechaHora(item.creadoEn);
+                return (
+                  <View style={styles.card}>
+                    <View style={styles.filaInfo}>
+                      <View style={styles.filaIconoWrapper}>
+                        <Ionicons name="location-outline" size={16} color="#c1121f" />
+                      </View>
+                      <Text style={styles.pedidoDireccion} numberOfLines={2}>{item.direccionEnvio}</Text>
+                    </View>
+                    <View style={styles.filaTotalFecha}>
+                      <Text style={styles.pedidoTotal}>${item.total.toLocaleString('es-CL')}</Text>
+                      {fechaTexto !== '' && <Text style={styles.pedidoFecha}>{fechaTexto}</Text>}
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.botonAceptar}
+                      onPress={() => aceptarPedido(item.id)}
+                      disabled={procesandoId === item.id}
+                    >
+                      {procesandoId === item.id ? (
+                        <ActivityIndicator color="#fff" size="small" />
+                      ) : (
+                        <>
+                          <Ionicons name="bicycle" size={16} color="#fff" />
+                          <Text style={styles.botonAceptarTexto}>Aceptar pedido</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              }}
+            />
+          </View>
         )}
       </View>
     </>
@@ -411,6 +488,30 @@ const styles = StyleSheet.create({
   chipTexto: { fontSize: 13, color: '#999', fontWeight: '700' },
   chipTextoActivo: { color: '#fff' },
 
+  buscador: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fff', borderRadius: 12, marginHorizontal: 20, marginBottom: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4,
+    elevation: 1,
+  },
+  buscadorInput: { flex: 1, fontSize: 14, padding: 0, color: '#1d1d1d' },
+  chipsFila: { paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+  chipFiltro: {
+    borderWidth: 1.5, borderColor: '#eee', backgroundColor: '#fff', borderRadius: 20,
+    paddingVertical: 7, paddingHorizontal: 14,
+  },
+  chipFiltroActivo: { borderColor: '#c1121f', backgroundColor: '#fdf0f1' },
+  chipFiltroTexto: { fontSize: 12.5, fontWeight: '700', color: '#666' },
+  chipFiltroTextoActivo: { color: '#c1121f' },
+
+  sinResultados: { alignItems: 'center', paddingTop: 40 },
+  botonLimpiar: {
+    marginTop: 14, borderWidth: 1.5, borderColor: '#c1121f', borderRadius: 10,
+    paddingVertical: 9, paddingHorizontal: 18,
+  },
+  botonLimpiarTexto: { color: '#c1121f', fontWeight: '700', fontSize: 13 },
+
   centerVacio: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   mensajeVacio: { fontSize: 16, fontWeight: '700', marginBottom: 6, textAlign: 'center', color: '#1d1d1d' },
   mensajeVacioSub: { fontSize: 13, color: '#999', textAlign: 'center', paddingHorizontal: 16 },
@@ -429,7 +530,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   pedidoDireccion: { flex: 1, fontSize: 14.5, fontWeight: '600', color: '#1d1d1d', marginTop: 4 },
-  pedidoTotal: { fontSize: 20, fontWeight: '800', color: '#c1121f', marginBottom: 14 },
+  filaTotalFecha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 },
+  pedidoTotal: { fontSize: 20, fontWeight: '800', color: '#c1121f' },
+  pedidoFecha: { fontSize: 11.5, color: '#999' },
 
   botonAceptar: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
