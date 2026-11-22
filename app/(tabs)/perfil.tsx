@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as Location from 'expo-location';
 import { apiUsers, apiStores } from '@/services/api';
+import { haySesionActiva } from '@/hooks/useAuth';
 
 type Usuario = {
   nombre: string;
@@ -33,6 +34,8 @@ export default function PerfilScreen() {
   const [estadoConductor, setEstadoConductor] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
+  const [verificandoSesion, setVerificandoSesion] = useState(true);
+  const [necesitaLogin, setNecesitaLogin] = useState(false);
 
   const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
   const [nuevaCalle, setNuevaCalle] = useState('');
@@ -64,7 +67,15 @@ export default function PerfilScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      cargarPerfil();
+      haySesionActiva().then((logueado) => {
+        setVerificandoSesion(false);
+        if (!logueado) {
+          setNecesitaLogin(true);
+          return;
+        }
+        setNecesitaLogin(false);
+        cargarPerfil();
+      });
     }, [])
   );
 
@@ -143,8 +154,38 @@ export default function PerfilScreen() {
   const cerrarSesion = async () => {
     await SecureStore.deleteItemAsync('access_token');
     await SecureStore.deleteItemAsync('refresh_token');
-    router.replace('/');
+    router.replace('/(tabs)/inicio');
   };
+
+  if (verificandoSesion) {
+    return (
+      <View style={styles.center}>
+        <View style={styles.figuraCirculoGrande} />
+        <View style={styles.figuraCirculoChico} />
+        <ActivityIndicator size="large" color="#c1121f" />
+      </View>
+    );
+  }
+
+  if (necesitaLogin) {
+    return (
+      <View style={styles.center}>
+        <View style={styles.figuraCirculoGrande} />
+        <View style={styles.figuraCirculoChico} />
+        <Ionicons name="person-circle-outline" size={40} color="#c9a3a3" style={{ marginBottom: 10 }} />
+        <Text style={styles.mensajeVacio}>Necesitás una cuenta para ver tu perfil</Text>
+        <Text style={styles.mensajeVacioSub}>
+          Iniciá sesión para gestionar tus direcciones, pedidos y más
+        </Text>
+        <TouchableOpacity
+          style={styles.botonLoginRequerido}
+          onPress={() => router.push('/login' as any)}
+        >
+          <Text style={styles.botonLoginRequeridoTexto}>Iniciar sesión</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (cargando) {
     return (
@@ -155,18 +196,6 @@ export default function PerfilScreen() {
       </View>
     );
   }
-
-  const tieneTiendaAprobada = tienda?.estado === 'APPROVED';
-  const esAdmin = usuario?.rol === 'ADMIN';
-  const estaVerificado = esAdmin || tieneTiendaAprobada;
-
-  const rolPrincipal = esAdmin
-    ? 'Administrador'
-    : tieneTiendaAprobada
-    ? 'Dueño de tienda'
-    : estadoConductor === 'DISPONIBLE' || estadoConductor === 'OCUPADO' || estadoConductor === 'INACTIVO'
-    ? 'Conductor'
-    : 'Cliente';
 
   return (
     <View style={styles.container}>
@@ -187,23 +216,18 @@ export default function PerfilScreen() {
         }
       >
         <View style={styles.tarjetaPerfil}>
-          <View style={styles.avatarAnillo}>
-            {usuario?.pictureUrl ? (
-              <Image source={{ uri: usuario.pictureUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarTexto}>{usuario?.nombre?.charAt(0) ?? '?'}</Text>
-              </View>
-            )}
-          </View>
+          {usuario?.pictureUrl ? (
+            <Image source={{ uri: usuario.pictureUrl }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarTexto}>{usuario?.nombre?.charAt(0) ?? '?'}</Text>
+            </View>
+          )}
 
           <Text style={styles.nombre}>{usuario?.nombre}</Text>
           <Text style={styles.email}>{usuario?.email}</Text>
 
           <View style={styles.filaStats}>
-            <View style={styles.statChip}>
-              <Text style={styles.statChipTexto}>{rolPrincipal}</Text>
-            </View>
             <View style={styles.statChip}>
               <Text style={styles.statChipTexto}>
                 {direcciones.length} {direcciones.length === 1 ? 'dirección' : 'direcciones'}
@@ -358,8 +382,8 @@ export default function PerfilScreen() {
           )}
         </View>
 
-        <TouchableOpacity style={styles.botonCerrarSesion} onPress={cerrarSesion}>
-          <Ionicons name="log-out-outline" size={16} color="#c1121f" />
+        <TouchableOpacity style={styles.botonCerrarSesion} onPress={cerrarSesion} activeOpacity={0.85}>
+          <Ionicons name="log-out-outline" size={18} color="#fff" />
           <Text style={styles.botonCerrarSesionTexto}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -371,8 +395,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#faf8f6', overflow: 'hidden' },
   center: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#faf8f6', overflow: 'hidden',
+    backgroundColor: '#faf8f6', overflow: 'hidden', paddingHorizontal: 30,
   },
+  mensajeVacio: { fontSize: 16, fontWeight: '700', color: '#1d1d1d', textAlign: 'center' },
+  mensajeVacioSub: { fontSize: 13, color: '#999', textAlign: 'center', marginTop: 6 },
+  botonLoginRequerido: {
+    backgroundColor: '#c1121f', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32,
+    marginTop: 20,
+  },
+  botonLoginRequeridoTexto: { color: '#fff', fontWeight: '800', fontSize: 15 },
   contentContainer: { padding: 20, paddingTop: 28, paddingBottom: 60 },
 
   figuraCirculoGrande: {
@@ -400,16 +431,10 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  avatarAnillo: {
-    width: 88, height: 88, borderRadius: 44,
-    borderWidth: 3, borderColor: '#c1121f',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 12, padding: 3,
-  },
-  avatar: { width: '100%', height: '100%', borderRadius: 40 },
+  avatar: { width: 84, height: 84, borderRadius: 42, marginBottom: 12 },
   avatarFallback: {
-    width: '100%', height: '100%', borderRadius: 40, backgroundColor: '#c1121f',
-    justifyContent: 'center', alignItems: 'center',
+    width: 84, height: 84, borderRadius: 42, backgroundColor: '#c1121f',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
   avatarTexto: { color: '#fff', fontSize: 26, fontWeight: 'bold' },
   nombre: { fontSize: 18, fontWeight: '800', color: '#1d1d1d' },
@@ -484,10 +509,10 @@ const styles = StyleSheet.create({
 
   botonCerrarSesion: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-    borderRadius: 14, paddingVertical: 14,
-    backgroundColor: '#fff',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6,
-    elevation: 2,
+    borderRadius: 14, paddingVertical: 15,
+    backgroundColor: '#c1121f',
+    shadowColor: '#c1121f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10,
+    elevation: 4,
   },
-  botonCerrarSesionTexto: { color: '#c1121f', fontWeight: '700', fontSize: 14 },
+  botonCerrarSesionTexto: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });
