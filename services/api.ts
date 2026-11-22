@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const ALB_HOST = 'http://nexo-alb-326907716.us-east-1.elb.amazonaws.com';
+const ALB_HOST = 'http://nexo-alb-1370249593.us-east-1.elb.amazonaws.com';
 
 const BASE_IPS = {
   msUsers: ALB_HOST,

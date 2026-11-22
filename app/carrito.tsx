@@ -2,11 +2,12 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import { useState, useCallback } from 'react';
 import { router, useFocusEffect, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useCart } from '@/context/CartContext';
+import { useCart, totalLinea } from '@/context/CartContext';
 import { haySesionActiva } from '@/hooks/useAuth';
+import { desglosarLinea } from '@/services/ofertas';
 
 export default function CarritoScreen() {
-  const { items, quitarItem, cambiarCantidad, subtotal } = useCart();
+  const { items, quitarItem, cambiarCantidad, subtotal, llevaAlcohol } = useCart();
   const [verificandoSesion, setVerificandoSesion] = useState(true);
   const [necesitaLogin, setNecesitaLogin] = useState(false);
 
@@ -80,6 +81,9 @@ export default function CarritoScreen() {
     );
   }
 
+  const ahora = Date.now();
+  const hayDescuentos = items.some((i) => desglosarLinea(i, ahora).unidadesOferta > 0);
+
   return (
     <>
       {header}
@@ -88,49 +92,114 @@ export default function CarritoScreen() {
         <View style={styles.figuraCirculoChico} />
         <FlatList
           data={items}
-          keyExtractor={(item) => item.productoId}
+          keyExtractor={(item) => item.lineaId}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.item}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.nombre} numberOfLines={2}>{item.nombre}</Text>
-                <Text style={styles.precioUnitario}>
-                  ${item.precio.toLocaleString('es-CL')} c/u
-                </Text>
-              </View>
+          renderItem={({ item }) => {
+            const linea = desglosarLinea(item, ahora);
+            const conOferta = linea.unidadesOferta > 0;
+            const precioOferta = item.precioOferta ?? 0;
+            const recargo = item.opcionesUnitario ?? 0;
 
-              <View style={styles.controlesDerecha}>
-                <Text style={styles.precioTotal}>
-                  ${(item.precio * item.cantidad).toLocaleString('es-CL')}
-                </Text>
+            return (
+              <View style={styles.item}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.filaNombre}>
+                    <Text style={styles.nombre} numberOfLines={2}>{item.nombre}</Text>
+                    {item.requiereMayorEdad && (
+                      <View style={styles.badgeEdad}>
+                        <Text style={styles.badgeEdadTexto}>+18</Text>
+                      </View>
+                    )}
+                  </View>
 
-                <View style={styles.stepper}>
-                  <TouchableOpacity
-                    style={styles.stepperBoton}
-                    onPress={() => cambiarCantidad(item.productoId, -1)}
-                  >
-                    <Ionicons name="remove" size={16} color="#c1121f" />
-                  </TouchableOpacity>
+                  {item.varianteNombre ? (
+                    <Text style={styles.detalle}>{item.varianteNombre}</Text>
+                  ) : null}
+                  {item.opcionesTexto ? (
+                    <Text style={styles.detalle} numberOfLines={3}>{item.opcionesTexto}</Text>
+                  ) : null}
+                  {item.nota ? (
+                    <View style={styles.filaNota}>
+                      <Ionicons name="chatbox-ellipses-outline" size={12} color="#999" />
+                      <Text style={styles.nota} numberOfLines={2}>{item.nota}</Text>
+                    </View>
+                  ) : null}
 
-                  <Text style={styles.stepperCantidad}>{item.cantidad}</Text>
+                  {conOferta ? (
+                    <>
+                      <Text style={styles.precioOfertaLinea}>
+                        {linea.unidadesOferta} × ${precioOferta.toLocaleString('es-CL')} (oferta)
+                      </Text>
+                      {linea.unidadesNormales > 0 && (
+                        <>
+                          <Text style={styles.precioUnitario}>
+                            {linea.unidadesNormales} × ${item.precio.toLocaleString('es-CL')}
+                          </Text>
+                          <Text style={styles.notaLimite}>
+                            La oferta aplica hasta {linea.unidadesOferta} {linea.unidadesOferta === 1 ? 'unidad' : 'unidades'} por pedido
+                          </Text>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <Text style={styles.precioUnitario}>
+                      ${item.precio.toLocaleString('es-CL')} c/u
+                    </Text>
+                  )}
 
-                  <TouchableOpacity
-                    style={styles.stepperBoton}
-                    onPress={() => cambiarCantidad(item.productoId, 1)}
-                  >
-                    <Ionicons name="add" size={16} color="#c1121f" />
-                  </TouchableOpacity>
+                  {recargo > 0 && (
+                    <Text style={styles.precioUnitario}>
+                      + ${recargo.toLocaleString('es-CL')} en opciones c/u
+                    </Text>
+                  )}
                 </View>
 
-                <TouchableOpacity onPress={() => quitarItem(item.productoId)}>
-                  <Text style={styles.quitar}>Quitar</Text>
-                </TouchableOpacity>
+                <View style={styles.controlesDerecha}>
+                  <Text style={styles.precioTotal}>
+                    ${totalLinea(item, ahora).toLocaleString('es-CL')}
+                  </Text>
+
+                  <View style={styles.stepper}>
+                    <TouchableOpacity
+                      style={styles.stepperBoton}
+                      onPress={() => cambiarCantidad(item.lineaId, -1)}
+                    >
+                      <Ionicons name="remove" size={16} color="#c1121f" />
+                    </TouchableOpacity>
+
+                    <Text style={styles.stepperCantidad}>{item.cantidad}</Text>
+
+                    <TouchableOpacity
+                      style={styles.stepperBoton}
+                      onPress={() => cambiarCantidad(item.lineaId, 1)}
+                    >
+                      <Ionicons name="add" size={16} color="#c1121f" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity onPress={() => quitarItem(item.lineaId)}>
+                    <Text style={styles.quitar}>Quitar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
+            );
+          }}
         />
 
         <View style={styles.footer}>
+          {hayDescuentos && (
+            <Text style={styles.avisoOfertas}>
+              El precio final de las ofertas se confirma al pagar.
+            </Text>
+          )}
+          {llevaAlcohol && (
+            <View style={styles.avisoEdad}>
+              <Ionicons name="alert-circle-outline" size={14} color="#1d1d1d" />
+              <Text style={styles.avisoEdadTexto}>
+                Tu pedido incluye alcohol: solo para mayores de 18 años.
+              </Text>
+            </View>
+          )}
           <View style={styles.filaSubtotal}>
             <Text style={styles.subtotalLabel}>Subtotal</Text>
             <Text style={styles.subtotal}>${subtotal.toLocaleString('es-CL')}</Text>
@@ -165,8 +234,16 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6,
     elevation: 2,
   },
-  nombre: { fontSize: 15, fontWeight: '700', color: '#1d1d1d' },
+  filaNombre: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nombre: { fontSize: 15, fontWeight: '700', color: '#1d1d1d', flexShrink: 1 },
+  badgeEdad: { backgroundColor: '#1d1d1d', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
+  badgeEdadTexto: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  detalle: { fontSize: 12.5, color: '#666', marginTop: 3, fontWeight: '600' },
+  filaNota: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  nota: { fontSize: 12, color: '#999', fontStyle: 'italic', flexShrink: 1 },
   precioUnitario: { fontSize: 12, color: '#999', marginTop: 4 },
+  precioOfertaLinea: { fontSize: 12, color: '#c1121f', fontWeight: '700', marginTop: 4 },
+  notaLimite: { fontSize: 10.5, color: '#999', marginTop: 4, fontStyle: 'italic' },
 
   controlesDerecha: { alignItems: 'flex-end', gap: 8, marginLeft: 12 },
   precioTotal: { fontSize: 15, fontWeight: '800', color: '#c1121f' },
@@ -189,6 +266,13 @@ const styles = StyleSheet.create({
     padding: 16, paddingBottom: 20,
     borderTopWidth: 1, borderTopColor: '#f0f0f0', backgroundColor: '#fff',
   },
+  avisoOfertas: { fontSize: 11.5, color: '#999', marginBottom: 10 },
+  avisoEdad: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#f4f4f4', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  avisoEdadTexto: { fontSize: 12, fontWeight: '600', color: '#1d1d1d', flexShrink: 1 },
   filaSubtotal: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
   },

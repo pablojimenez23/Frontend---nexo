@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+﻿import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -17,7 +17,7 @@ export default function TerminosScreen() {
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={{ padding: 24, paddingBottom: 48 }}>
-        <Text style={styles.actualizado}>Última actualización: septiembre de 2026</Text>
+        <Text style={styles.actualizado}>Última actualización: octubre de 2026</Text>
 
         <Text style={styles.parrafo}>
           Los presentes Términos y Condiciones regulan el acceso y uso de la plataforma NEXO
@@ -83,7 +83,67 @@ export default function TerminosScreen() {
           del pedido por parte de la Tienda.
         </Text>
 
-        <Text style={styles.titulo}>6. Limitación de responsabilidad</Text>
+        <Text style={styles.titulo}>6. Ofertas por tiempo limitado</Text>
+        <Text style={styles.parrafo}>
+          Las Tiendas pueden publicar ofertas por tiempo limitado sobre sus productos. Cada
+          oferta indica el porcentaje de descuento, el precio resultante y su fecha de
+          término, y es financiada íntegramente por la Tienda que la publica: NEXO calcula
+          su comisión sobre el precio efectivamente cobrado al Cliente.
+        </Text>
+        <Text style={styles.parrafo}>
+          Vigencia y límites: la oferta está disponible hasta su fecha y hora de término
+          (hora de Chile) o hasta que se agote el cupo de unidades definido por la Tienda,
+          lo que ocurra primero, y puede ser cancelada por la Tienda antes de ese plazo.
+          Cada oferta puede limitar la cantidad de unidades por pedido que acceden al
+          precio rebajado; las unidades adicionales se cobran al precio regular del
+          producto.
+        </Text>
+        <Text style={styles.parrafo}>
+          Precio aplicable: el precio de oferta que se muestra en el carrito es una
+          estimación. El precio definitivo es el vigente al momento en que el Cliente
+          confirma su pedido, por lo que una oferta que termine o se agote antes de esa
+          confirmación no se aplicará. El precio cobrado queda registrado en el pedido y no
+          varía aunque la oferta termine después.
+        </Text>
+        <Text style={styles.parrafo}>
+          Otras condiciones: el tope de pago con puntos se calcula sobre el subtotal de
+          productos ya con la oferta aplicada. En caso de cancelación, los reembolsos y
+          cargos se calculan sobre el monto efectivamente pagado por el Cliente.
+        </Text>
+
+        <Text style={styles.titulo}>7. Programa de puntos NEXO</Text>
+        <Text style={styles.parrafo}>
+          Acumulación: el Cliente acumula 1 punto por cada $1.000 pagados en un pedido, una
+          vez que este se encuentra completado, es decir, entregado y con su recepción
+          confirmada. Los pedidos cancelados no generan puntos.
+        </Text>
+        <Text style={styles.parrafo}>
+          Canje: cada punto equivale a $10 y solo puede usarse para pagar productos, no el
+          costo de envío. En cada pedido se puede pagar con puntos hasta el 10 % del
+          subtotal de productos, y el canje mínimo es de 25 puntos por pedido. Los puntos
+          no son canjeables por dinero, no son transferibles entre cuentas y no pueden
+          combinarse con otros beneficios que lo indiquen expresamente.
+        </Text>
+        <Text style={styles.parrafo}>
+          Vigencia: los puntos vencen 12 meses después de la fecha en que fueron
+          acreditados, al término de ese día (hora de Chile). Al canjear, se utilizan
+          primero los puntos más antiguos. Los puntos acumulados antes del 23 de octubre de
+          2026 vencen el 23 de octubre de 2027. NEXO informará en la aplicación el saldo y
+          la fecha del próximo vencimiento, y enviará un aviso 30 y 7 días antes de que
+          venzan.
+        </Text>
+        <Text style={styles.parrafo}>
+          Cancelaciones: si un pedido pagado con puntos se cancela, los puntos canjeados se
+          devuelven a la cuenta del Cliente, conservando su fecha de vencimiento original.
+        </Text>
+        <Text style={styles.parrafo}>
+          NEXO podrá modificar las condiciones del programa de puntos, informando a los
+          Clientes en la aplicación con al menos 30 días de anticipación. Las
+          modificaciones no afectarán la vigencia de los puntos ya acreditados. NEXO podrá
+          anular los puntos obtenidos mediante fraude o uso indebido de la Plataforma.
+        </Text>
+
+        <Text style={styles.titulo}>8. Limitación de responsabilidad</Text>
         <Text style={styles.parrafo}>
           NEXO actúa exclusivamente como intermediario tecnológico. En consecuencia, no
           garantiza la calidad, inocuidad, oportunidad ni exactitud de los productos
@@ -93,7 +153,7 @@ export default function TerminosScreen() {
           reiteradamente sus obligaciones.
         </Text>
 
-        <Text style={styles.titulo}>7. Propiedad intelectual</Text>
+        <Text style={styles.titulo}>9. Propiedad intelectual</Text>
         <Text style={styles.parrafo}>
           El nombre "NEXO", su logotipo, diseño de la aplicación y demás elementos
           distintivos son propiedad de sus titulares y se encuentran protegidos por la Ley
@@ -101,14 +161,14 @@ export default function TerminosScreen() {
           parcial sin autorización expresa.
         </Text>
 
-        <Text style={styles.titulo}>8. Modificaciones</Text>
+        <Text style={styles.titulo}>10. Modificaciones</Text>
         <Text style={styles.parrafo}>
           NEXO podrá modificar estos Términos y Condiciones en cualquier momento. Los
           cambios se entenderán aceptados por el uso continuado de la Plataforma con
           posterioridad a su publicación.
         </Text>
 
-        <Text style={styles.titulo}>9. Ley aplicable y jurisdicción</Text>
+        <Text style={styles.titulo}>11. Ley aplicable y jurisdicción</Text>
         <Text style={styles.parrafo}>
           Estos términos se rigen por las leyes de la República de Chile. Cualquier
           controversia derivada de su interpretación o aplicación será sometida a los
