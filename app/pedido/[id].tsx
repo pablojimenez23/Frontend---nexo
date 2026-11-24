@@ -116,6 +116,7 @@ export default function PedidoConfirmadoScreen() {
     try {
       if (pasoCalificacion === 'tienda' && pedido) {
         await apiStores.post(`/tiendas/${pedido.tiendaId}/calificaciones`, {
+          pedidoId: pedido.id,
           puntaje,
           comentario: comentario.trim() || null,
         });
