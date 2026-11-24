@@ -1126,7 +1126,7 @@ export default function MiTiendaScreen() {
                 )}
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsScroll}>
                 {GRUPOS_TIENDA.map((g) => {
                   const activo = grupo === g.clave;
                   const cantidad = baseFiltrada.filter((p) => enGrupo(p.estado, g.estados)).length;
@@ -1144,7 +1144,7 @@ export default function MiTiendaScreen() {
                 })}
               </ScrollView>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsScroll}>
                 {FILTROS_FECHA.map((f) => {
                   const activo = fecha === f.clave;
                   return (
@@ -1432,7 +1432,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   buscadorInput: { flex: 1, fontSize: 14, padding: 0, color: '#1d1d1d' },
-  chipsScroll: { paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+  chipsContenedor: { flexGrow: 0, flexShrink: 0 },
+  chipsScroll: { paddingHorizontal: 20, gap: 8, marginBottom: 8, alignItems: 'center' },
   chipFecha: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 14 },
   chipFechaActivo: { backgroundColor: '#1d1d1d' },
   chipFechaTexto: { fontSize: 12, fontWeight: '600', color: '#999' },

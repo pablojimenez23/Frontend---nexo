@@ -246,7 +246,7 @@ export default function ConductorActividadScreen() {
                 )}
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsFila}>
                 {GRUPOS_CONDUCTOR.map((g) => {
                   const activo = grupo === g.clave;
                   const cantidad = baseEntregas.filter((p) => enGrupo(p.estado, g.estados)).length;
@@ -264,7 +264,7 @@ export default function ConductorActividadScreen() {
                 })}
               </ScrollView>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsFila}>
                 {FILTROS_FECHA.map((f) => {
                   const activo = fecha === f.clave;
                   return (
@@ -335,7 +335,7 @@ export default function ConductorActividadScreen() {
           </View>
         ) : (
           <View style={{ flex: 1 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsFila}>
               {FILTROS_PUNTAJE.map((f) => {
                 const activo = puntaje === f.clave;
                 const cantidad = calificaciones.filter(
@@ -355,7 +355,7 @@ export default function ConductorActividadScreen() {
               })}
             </ScrollView>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsFila}>
               {FILTROS_FECHA.map((f) => {
                 const activo = fechaCal === f.clave;
                 return (
@@ -480,7 +480,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   buscadorInput: { flex: 1, fontSize: 14, padding: 0, color: '#1d1d1d' },
-  chipsFila: { paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+  chipsContenedor: { flexGrow: 0, flexShrink: 0 },
+  chipsFila: { paddingHorizontal: 20, gap: 8, marginBottom: 8, alignItems: 'center' },
   chip: {
     borderWidth: 1.5, borderColor: '#eee', backgroundColor: '#fff', borderRadius: 20,
     paddingVertical: 7, paddingHorizontal: 14,

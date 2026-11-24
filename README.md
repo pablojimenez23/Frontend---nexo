@@ -111,4 +111,4 @@ El ALB envía cada prefijo a su microservicio: `/stores*`, `/products*`, `/order
 
 ## 9. Backend
 
-NEXO se compone de cinco microservicios Spring Boot desplegados en AWS ECS Fargate. Repositorio del backend: (pegar enlace).
+NEXO se compone de cinco microservicios Spring Boot desplegados en AWS ECS Fargate. Repositorio del backend: https://github.com/pablojimenez23/Backend---Nexo
