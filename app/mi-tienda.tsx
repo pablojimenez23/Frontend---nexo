@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiStores, apiOrders, apiProducts } from '@/services/api';
 import { useNoLeidas } from '@/hooks/useNoLeidas';
+import { useFuncion } from '@/services/version';
 import { Oferta, tiempoRestante } from '@/services/ofertas';
 import {
   Campo,
@@ -110,6 +111,8 @@ export default function MiTiendaScreen() {
   const [cargando, setCargando] = useState(true);
   const [actualizandoId, setActualizandoId] = useState<string | null>(null);
   const noLeidas = useNoLeidas();
+  const hayOfertas = useFuncion('ofertas');
+  const hayNotificaciones = useFuncion('notificaciones');
 
   const [grupo, setGrupo] = useState('todos');
   const [fecha, setFecha] = useState<FiltroFecha>('todos');
@@ -481,6 +484,7 @@ export default function MiTiendaScreen() {
   };
 
   const renderOfertaDelProducto = (producto: Producto) => {
+    if (!hayOfertas) return null;
     const oferta = ofertas.find((o) => o.productoId === producto.id);
     const ahora = Date.now();
 
