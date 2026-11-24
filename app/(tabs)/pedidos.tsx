@@ -179,7 +179,7 @@ export default function PedidosScreen() {
           )}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsFila}>
           {GRUPOS_CLIENTE.map((g) => {
             const activo = grupo === g.clave;
             const cantidad = base.filter((p) => enGrupo(p.estado, g.estados)).length;
@@ -197,7 +197,7 @@ export default function PedidosScreen() {
           })}
         </ScrollView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsFila}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContenedor} contentContainerStyle={styles.chipsFila}>
           {FILTROS_FECHA.map((f) => {
             const activo = fecha === f.clave;
             return (
@@ -306,7 +306,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   buscadorInput: { flex: 1, fontSize: 14, padding: 0, color: '#1d1d1d' },
-  chipsFila: { paddingHorizontal: 16, gap: 8, marginBottom: 8 },
+  chipsContenedor: { flexGrow: 0, flexShrink: 0 },
+  chipsFila: { paddingHorizontal: 16, gap: 8, marginBottom: 8, alignItems: 'center' },
   chip: {
     borderWidth: 1.5, borderColor: '#eee', backgroundColor: '#fff', borderRadius: 20,
     paddingVertical: 7, paddingHorizontal: 14,
