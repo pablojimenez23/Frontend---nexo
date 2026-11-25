@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiUsers, apiOrders } from '@/services/api';
 import { useNoLeidas } from '@/hooks/useNoLeidas';
+import { useFuncion } from '@/services/version';
 import { formatearFechaHora, normalizar } from '@/services/pedidos';
 
 type Conductor = {
@@ -38,6 +39,7 @@ export default function ConductorScreen() {
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
   const noLeidas = useNoLeidas();
+  const hayNotificaciones = useFuncion('notificaciones');
 
   const [busqueda, setBusqueda] = useState('');
   const [orden, setOrden] = useState<Orden>('antiguos');
@@ -145,7 +147,7 @@ export default function ConductorScreen() {
         </View>
 
         <View style={styles.headerAccionesWrapper}>
-          <TouchableOpacity
+          {hayNotificaciones && (<TouchableOpacity
             onPress={() => router.push('/notificaciones' as any)}
             style={styles.headerIconoCirculo}
           >
@@ -155,7 +157,7 @@ export default function ConductorScreen() {
                 <Text style={styles.headerBadgeTexto}>{noLeidas}</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </TouchableOpacity>)}
           <TouchableOpacity
             onPress={() => router.push('/conductor-actividad' as any)}
             style={styles.headerIconoCirculo}

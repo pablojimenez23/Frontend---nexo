@@ -994,7 +994,7 @@ export default function MiTiendaScreen() {
         </View>
 
         <View style={styles.headerAccionesWrapper}>
-          <TouchableOpacity
+          {hayNotificaciones && (<TouchableOpacity
             onPress={() => router.push('/notificaciones' as any)}
             style={styles.headerIconoCirculo}
           >
@@ -1004,7 +1004,7 @@ export default function MiTiendaScreen() {
                 <Text style={styles.headerBadgeTexto}>{noLeidas}</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </TouchableOpacity>)}
           <TouchableOpacity
             onPress={() => router.push('/tienda-actividad' as any)}
             style={styles.headerIconoCirculo}
